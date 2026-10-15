@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { Viewport } from "next";
 import { Fraunces, DM_Sans } from "next/font/google";
+import { MotionConfig } from "motion/react";
 import "./globals.css";
 import { Toaster } from "sonner";
 
@@ -21,9 +22,12 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Tamera's Cakes & Bakery",
+  title: {
+    default: "Tamera's Cakes & Bakery",
+    template: "%s | Tamera's Cakes",
+  },
   description: "Cakes and pastries made with love in Kitengela. Order online, pick up or delivered.",
-  manifest: "/manifest.webmanifest",
+  manifest: "/site.webmanifest",
 };
 
 export default function RootLayout({
@@ -38,7 +42,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-dvh antialiased">
-        {children}
+        <MotionConfig reducedMotion="user">{children}</MotionConfig>
         <Toaster position="top-center" richColors />
       </body>
     </html>
