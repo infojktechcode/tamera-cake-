@@ -90,3 +90,23 @@ choice was made and recorded here.
   per-screen placeholders so nav never 404s.
 - Order detail/confirmation, KPI queries and all other screens come in the
   later phases of `Agent.md`.
+
+## 7. Phase 2 (public browsing)
+
+- The cakes gallery shows **cake_flavours** rows (they have no slug), so a
+  card links to `/order/cake?flavour=<uuid>` — products with slugs use
+  `/p/<slug>` share pages instead.
+- Pastries are **browse-only** until Phase 3: no steppers/cart on cards yet.
+- The public shell is **static and cookie-free**: "Staff login" is a plain
+  `<Link>` (no session client enters the `(public)` tree), which keeps every
+  public route `●` static in the build.
+- Category chips on `/pastries` are data-driven — with the current seed that
+  renders `["All", "Pastries"]`, not a hardcoded list.
+- Home featured cakes = products with `/showcase/*.jpg` images, fetched via
+  `getFeaturedCakes(4)`.
+- Env vars: `NEXT_PUBLIC_SITE_URL` (og:image absolutization) and
+  `NEXT_PUBLIC_SHOP_WHATSAPP` (wa.me target) in `.env.local`.
+- wa.me links only **open** a chat — the customer presses send (also note for
+  the README when Phase 7 touches it).
+- `manifest` metadata fixed to `/site.webmanifest`; the PWA work itself is
+  Phase 7.
