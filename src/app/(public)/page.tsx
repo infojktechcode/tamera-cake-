@@ -1,6 +1,6 @@
 export default function Page() {
   return (
-    <main className="p-4">
+    <div className="p-4">
       <h1>Tamera&apos;s Cakes & Bakery</h1>
       <p>Order system ready. Please log in to the dashboard.</p>
       <div className="mt-4">
@@ -11,6 +11,6 @@ export default function Page() {
           Order Pastries
         </button>
       </div>
-    </main>
+    </div>
   )
 }
