@@ -23,6 +23,7 @@ export type FlavourCard = {
   image_url: string | null;
 };
 export type PastryItem = {
+  id: string;
   slug: string;
   name: string;
   description: string | null;
@@ -105,7 +106,7 @@ export async function getPastries(): Promise<PastryItem[]> {
   cacheLife("hours");
   const { data, error } = await getPublicClient()
     .from("products")
-    .select("slug,name,description,image_url,price,category:categories!inner(name)")
+    .select("id,slug,name,description,image_url,price,category:categories!inner(name)")
     .eq("available", true)
     .eq("categories.kind", "pastry")
     .order("sort_order", { ascending: true });
@@ -115,6 +116,7 @@ export async function getPastries(): Promise<PastryItem[]> {
     // infer cardinality, so it types the embed as an array — cast it back.
     const category = row.category as unknown as { name: string } | null;
     return {
+      id: row.id,
       slug: row.slug,
       name: row.name,
       description: row.description,

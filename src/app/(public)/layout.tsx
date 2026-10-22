@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { CartDrawer } from "@/components/public/CartDrawer";
+import { getOrderSettings } from "@/lib/builder-data";
 import { getShopWhatsapp, waHref } from "@/lib/whatsapp";
 
 // Public shell constraint: static and cookie-free. No supabase imports, no
@@ -19,7 +21,10 @@ async function getCopyrightYear(): Promise<number> {
 }
 
 export default async function PublicLayout({ children }: { children: ReactNode }) {
-  const year = await getCopyrightYear();
+  const [year, settings] = await Promise.all([
+    getCopyrightYear(),
+    getOrderSettings(),
+  ]);
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-40 border-b border-cocoa/10 bg-cream/90 backdrop-blur">
@@ -84,6 +89,8 @@ export default async function PublicLayout({ children }: { children: ReactNode }
           © {year} Tamera&apos;s Cakes &amp; Bakery
         </div>
       </footer>
+
+      <CartDrawer depositThresholdKg={settings.deposit_threshold_kg} />
     </div>
   );
 }
