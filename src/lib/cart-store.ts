@@ -137,3 +137,12 @@ export function createCartStore() {
     ),
   );
 }
+
+/**
+ * The one store every client component shares.
+ *
+ * `createCartStore()` above stays the per-call factory the unit tests use.
+ * This module-level instance is what the builder, pastry browser and cart
+ * drawer all talk to, so a cake added in the builder is visible in the drawer.
+ */
+export const useCart = createCartStore();

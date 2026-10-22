@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { createCartStore, type CartState } from "./cart-store";
+import { createCartStore } from "./cart-store";
 import type { CakeCartItem, PastryCartItem } from "../types/cart";
 
 describe("cart store", () => {
