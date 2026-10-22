@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { canTransition, isOrderStatus } from "@/lib/order-status";
+import { checkOrderDateRules } from "@/lib/admin-date-check";
 import { getStaffSession } from "@/lib/session";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -50,7 +51,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .select("id, order_number, status, fulfilment")
+    .select("id, order_number, status, fulfilment, date_needed")
     .eq("id", id)
     .maybeSingle();
 
@@ -70,6 +71,22 @@ export async function PATCH(req: Request, { params }: Params) {
       { ok: false, error: allowed.reason ?? "That move is not allowed." },
       { status: 400 },
     );
+  }
+
+  // Confirming is the moment the shop commits to the work, so the date rules
+  // are checked again here: a day can be blocked or filled up between the
+  // customer placing the order and the shop saying yes (spec §5).
+  if (nextStatus === "confirmed" && order.date_needed) {
+    const dateCheck = await checkOrderDateRules(supabase, {
+      dateNeeded: order.date_needed as string,
+      excludeOrderId: order.id as string,
+    });
+    if (!dateCheck.ok) {
+      return NextResponse.json(
+        { ok: false, error: dateCheck.reason ?? "That date is not available." },
+        { status: 400 },
+      );
+    }
   }
 
   const { error: updateError } = await supabase
