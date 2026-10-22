@@ -10,6 +10,9 @@ export default defineConfig({
     },
   },
   test: {
+    // Only the unit and component tests — the Playwright suite in `e2e/`
+    // runs under `pnpm test:e2e`, not under vitest.
+    include: ["src/**/*.{test,spec}.{ts,tsx}"],
     environment: "node",
     // Component tests need a DOM; store/lib tests stay DOM-free.
     // `environmentMatchGlobs` is deprecated in vitest 5 — use per-file

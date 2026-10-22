@@ -2,10 +2,12 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type {
   CakeCartItem,
+  CartOrderDetails,
   PastryCartItem,
   CartItem,
   CartState,
 } from "../types/cart";
+import { freshCartDetails } from "../types/cart";
 
 // --- pure cart helpers (exportable for testing/SSR) ---
 
@@ -26,9 +28,21 @@ export function hasCakes(items: CartItem[]): boolean {
   return items.some((i) => i.kind === "cake");
 }
 
-export function hasCakesRequiringDeposit(items: CartItem[], depositThresholdKg: number): boolean {
+/**
+ * True when the order needs a deposit.
+ *
+ * Mirrors the server rule in `order-compute.ts`: a cake at or above the
+ * threshold, or a tier other than Simple, needs a deposit — but a design that
+ * the shop still has to quote does not (there is no final price to take a
+ * percentage of yet).
+ */
+export function hasCakesRequiringDeposit(
+  items: CartItem[],
+  depositThresholdKg: number,
+): boolean {
   return items.some((item) => {
     if (item.kind !== "cake") return false;
+    if (item.tierRequiresQuote) return false;
     return item.kg >= depositThresholdKg || item.tierName !== "Simple";
   });
 }
@@ -53,6 +67,7 @@ export function createCartStore() {
     persist(
       (set, get) => ({
         ...recompute([]),
+        details: freshCartDetails(),
 
         hasCakesRequiringDeposit: (depositThresholdKg: number) =>
           hasCakesRequiringDeposit(get().items, depositThresholdKg),
@@ -117,21 +132,29 @@ export function createCartStore() {
           );
         },
 
-        clear: () => set(() => recompute([])),
+        setDetails: (details: Partial<CartOrderDetails>) => {
+          set((state) => ({
+            ...state,
+            details: {
+              ...state.details,
+              ...details,
+              fulfilment: {
+                ...state.details.fulfilment,
+                ...(details.fulfilment ?? {}),
+              },
+            },
+          }));
+        },
+
+        clear: () => set(() => ({ ...recompute([]), details: freshCartDetails() })),
       }),
       {
         name: "tamera-cart",
         storage: createJSONStorage(() => sessionStorage as unknown as Storage),
-        // File objects (referencePhotos) can't serialize; strip on persist.
+        // Only plain data is persisted — items and the order-level details.
         partialize: (state) => ({
-          items: state.items.map((item) => {
-            if (item.kind === "cake") {
-              const { referencePhotos: _omit, ...rest } = item;
-              void _omit;
-              return rest;
-            }
-            return item;
-          }),
+          items: state.items,
+          details: state.details,
         }),
       },
     ),

@@ -202,4 +202,83 @@ describe("CheckoutForm", () => {
 
     await waitFor(() => expect(useCart.getState().items).toHaveLength(0));
   });
+
+  it("sends the uploaded reference photo paths with the order", async () => {
+    seedCart();
+    useCart.getState().updateCake("11111111-1111-4111-8111-111111111111", {
+      referencePhotos: ["cakes/a.jpg", "cakes/b.jpg"],
+    });
+    const user = userEvent.setup();
+    render(<CheckoutForm zones={ZONES} settings={SETTINGS} blockedDates={[]} />);
+
+    await user.type(screen.getByLabelText(/name/i), "Wanjiku");
+    await user.type(screen.getByLabelText(/phone/i), "0712345678");
+    await user.selectOptions(screen.getByLabelText(/delivery zone/i), ZONE_ID);
+    await user.type(screen.getByLabelText(/address/i), "Mwangaza Road");
+    await user.type(screen.getByLabelText(/date/i), "2099-06-15");
+    await user.click(screen.getByRole("button", { name: /place order/i }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    const cake = body.items.find((i: { kind: string }) => i.kind === "cake");
+    expect(cake.referencePhotos).toEqual(["cakes/a.jpg", "cakes/b.jpg"]);
+  });
+
+  it("starts from the date and the zone the customer already chose", () => {
+    useCart.getState().setDetails({
+      dateNeeded: "2099-06-15",
+      timeNeeded: "10:30",
+      fulfilment: {
+        kind: "delivery",
+        zoneId: ZONE_ID,
+        zoneName: "Kitengela",
+        fee: 500,
+        chosen: true,
+      },
+    });
+    seedCart();
+    render(<CheckoutForm zones={ZONES} settings={SETTINGS} blockedDates={[]} />);
+
+    expect(screen.getByLabelText(/date/i)).toHaveValue("2099-06-15");
+    expect(screen.getByLabelText(/time/i)).toHaveValue("10:30");
+    expect(screen.getByLabelText(/delivery zone/i)).toHaveValue(ZONE_ID);
+  });
+
+  it("keeps the pickup the customer chose in the builder", () => {
+    useCart.getState().setDetails({
+      fulfilment: {
+        kind: "pickup",
+        zoneId: null,
+        zoneName: null,
+        fee: 0,
+        chosen: true,
+      },
+    });
+    seedCart();
+    render(<CheckoutForm zones={ZONES} settings={SETTINGS} blockedDates={[]} />);
+
+    expect(screen.getByLabelText(/pickup/i)).toBeChecked();
+    expect(screen.queryByLabelText(/delivery zone/i)).not.toBeInTheDocument();
+  });
+
+  it("does not promise a deposit for a design that still needs a quote", () => {
+    useCart.getState().addCake({
+      flavourId: "11111111-1111-4111-8111-111111111111",
+      flavourName: "Red Velvet",
+      flavourPricePerKg: 3200,
+      sizeId: "22222222-2222-4222-8222-222222222222",
+      kg: 3,
+      tierId: "33333333-3333-4333-8333-333333333333",
+      tierName: "Custom 3D",
+      tierExtraFee: 0,
+      tierRequiresQuote: true,
+      designDescription: "",
+      cakeMessage: "",
+      allergies: "",
+      referencePhotos: [],
+    });
+    render(<CheckoutForm zones={ZONES} settings={SETTINGS} blockedDates={[]} />);
+
+    expect(screen.queryByText(/deposit due now/i)).not.toBeInTheDocument();
+  });
 });

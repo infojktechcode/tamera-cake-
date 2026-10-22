@@ -258,4 +258,81 @@ describe("cart store", () => {
     expect(pastry.kind).toBe("pastry");
     expect(pastry.quantity).toBe(1);
   });
+
+  it("persists the order details and the reference photo paths", () => {
+    const storage: Record<string, string> = {};
+    vi.stubGlobal("sessionStorage", {
+      getItem: (k: string) => storage[k] ?? null,
+      setItem: (k: string, v: string) => {
+        storage[k] = v;
+      },
+      removeItem: (k: string) => {
+        delete storage[k];
+      },
+    });
+
+    const store = createCartStore();
+    store.getState().setDetails({
+      dateNeeded: "2099-06-15",
+      timeNeeded: "10:30",
+      fulfilment: {
+        kind: "delivery",
+        zoneId: "z1",
+        zoneName: "Kitengela",
+        fee: 500,
+        chosen: true,
+      },
+    });
+
+    const parsed = JSON.parse(storage["tamera-cart"]);
+    expect(parsed.state.details.dateNeeded).toBe("2099-06-15");
+    expect(parsed.state.details.fulfilment.zoneId).toBe("z1");
+  });
+
+  it("setDetails merges the fulfilment instead of replacing it wholesale", () => {
+    const store = createCartStore();
+    store.getState().setDetails({
+      fulfilment: {
+        kind: "delivery",
+        zoneId: "z1",
+        zoneName: "Kitengela",
+        fee: 500,
+        chosen: true,
+      },
+    });
+    store.getState().setDetails({ dateNeeded: "2099-06-15" });
+
+    const details = store.getState().details;
+    expect(details.dateNeeded).toBe("2099-06-15");
+    expect(details.fulfilment.zoneId).toBe("z1");
+    expect(details.fulfilment.chosen).toBe(true);
+  });
+
+  it("clear resets the order details too", () => {
+    const store = createCartStore();
+    store.getState().setDetails({ dateNeeded: "2099-06-15" });
+    store.getState().clear();
+    expect(store.getState().details.dateNeeded).toBeNull();
+    expect(store.getState().details.fulfilment.chosen).toBe(false);
+  });
+
+  it("hasCakesRequiringDeposit: a quoted design needs no deposit yet", () => {
+    const store = createCartStore();
+    store.getState().addCake({
+      flavourId: "f1",
+      flavourName: "Test",
+      flavourPricePerKg: 1000,
+      sizeId: "s1",
+      kg: 4,
+      tierId: "t3",
+      tierName: "Custom 3D",
+      tierExtraFee: 0,
+      tierRequiresQuote: true,
+      designDescription: "",
+      cakeMessage: "",
+      allergies: "",
+      referencePhotos: [],
+    });
+    expect(store.getState().hasCakesRequiringDeposit(3)).toBe(false);
+  });
 });

@@ -13,6 +13,12 @@
 # testing
 /coverage
 
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
 # next.js
 /.next/
 /out/
@@ -35,6 +41,9 @@ yarn-error.log*
 
 # superpowers plan workspace (scratch)
 /.superpowers/
+
+# git worktrees
+/.worktrees/
 
 # vercel
 .vercel

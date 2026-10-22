@@ -76,8 +76,13 @@ export function CartDrawer({ depositThresholdKg }: { depositThresholdKg: number 
                           item.flavourPricePerKg * item.kg + item.tierExtraFee,
                         )
                       : item.unitPrice * item.quantity;
+                  // The React key and the id the store removes by are not the
+                  // same thing: the store matches on the flavour id (cake) or
+                  // the product id (pastry).
                   const key =
                     item.kind === "cake" ? `cake-${item.flavourId}` : item.productId;
+                  const removeId =
+                    item.kind === "cake" ? item.flavourId : item.productId;
                   const name =
                     item.kind === "cake"
                       ? `${item.flavourName} cake — ${item.kg}kg, ${item.tierName}`
@@ -99,7 +104,7 @@ export function CartDrawer({ depositThresholdKg }: { depositThresholdKg: number 
                         </span>
                         <button
                           type="button"
-                          onClick={() => removeItem(key)}
+                          onClick={() => removeItem(removeId)}
                           aria-label={`Remove ${item.kind === "cake" ? item.flavourName : item.name}`}
                           className="flex h-11 w-11 items-center justify-center rounded-full text-cocoa transition hover:bg-blush"
                         >

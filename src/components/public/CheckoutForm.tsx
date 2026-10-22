@@ -39,15 +39,22 @@ export function CheckoutForm({
 }) {
   const router = useRouter();
   const items = useCart((s) => s.items);
+  const details = useCart((s) => s.details);
   const clear = useCart((s) => s.clear);
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [fulfilmentKind, setFulfilmentKind] = useState<"delivery" | "pickup">("delivery");
-  const [zoneId, setZoneId] = useState<string>(zones[0]?.id ?? "");
+  const [fulfilmentKind, setFulfilmentKind] = useState<"delivery" | "pickup">(
+    details.fulfilment.chosen ? details.fulfilment.kind : "delivery",
+  );
+  const [zoneId, setZoneId] = useState<string>(
+    details.fulfilment.zoneId ?? zones[0]?.id ?? "",
+  );
   const [address, setAddress] = useState("");
-  const [dateNeeded, setDateNeeded] = useState("");
-  const [timeNeeded, setTimeNeeded] = useState("");
+  // The cake builder already asked for the date and the time — start from
+  // those answers instead of asking the customer again.
+  const [dateNeeded, setDateNeeded] = useState(details.dateNeeded ?? "");
+  const [timeNeeded, setTimeNeeded] = useState(details.timeNeeded ?? "");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -62,9 +69,12 @@ export function CheckoutForm({
     const zone = zones.find((z) => z.id === zoneId);
     const deliveryFee = fulfilmentKind === "delivery" ? (zone?.fee ?? 0) : 0;
     const total = subtotal + deliveryFee;
+    // Mirrors the server rule: a design that still needs a quote carries no
+    // deposit, because there is no final price to take a percentage of yet.
     const needsDeposit = items.some(
       (item) =>
         item.kind === "cake" &&
+        !item.tierRequiresQuote &&
         (item.kg >= settings.deposit_threshold_kg || item.tierName !== "Simple"),
     );
     const deposit = needsDeposit ? Math.round((total * settings.deposit_percent) / 100) : 0;
@@ -113,7 +123,7 @@ export function CheckoutForm({
               designDescription: item.designDescription,
               cakeMessage: item.cakeMessage,
               allergies: item.allergies,
-              referencePhotos: [],
+              referencePhotos: item.referencePhotos,
             }
           : {
               kind: "pastry" as const,

@@ -16,19 +16,77 @@ const PRODUCT_ID = "44444444-4444-4444-8444-444444444444";
 const ZONE_ID = "55555555-5555-4555-8555-555555555555";
 
 const TABLE_ROWS: Record<string, Record<string, unknown>[]> = {
-  cake_sizes: [{ id: SIZE_ID, kg: 2 }],
-  cake_flavours: [{ id: FLAVOUR_ID, name: "Red Velvet", price_per_kg: 3200 }],
+  cake_sizes: [{ id: SIZE_ID, kg: 2, available: true }],
+  cake_flavours: [
+    { id: FLAVOUR_ID, name: "Red Velvet", price_per_kg: 3200, available: true },
+  ],
   design_tiers: [{ id: TIER_ID, name: "Simple", extra_fee: 0, requires_quote: false }],
-  delivery_zones: [{ id: ZONE_ID, name: "Kitengela", fee: 500 }],
-  products: [{ id: PRODUCT_ID, name: "Scone", price: 450 }],
+  delivery_zones: [{ id: ZONE_ID, name: "Kitengela", fee: 500, active: true }],
+  products: [{ id: PRODUCT_ID, name: "Scone", price: 450, available: true }],
 };
+
+/**
+ * Cakes already booked for a date — the capacity check counts them.
+ *
+ * The route reads them with three queries (orders → order_items →
+ * cake_details), so the stub has to answer all three the way PostgREST does.
+ */
+let bookedCakes: { orderId: string; itemId: string; date: string; status: string }[] = [];
+
+function rowsFor(table: string): Record<string, unknown>[] {
+  if (table === "orders") {
+    return bookedCakes.map((c) => ({
+      id: c.orderId,
+      date_needed: c.date,
+      status: c.status,
+    }));
+  }
+  if (table === "order_items") {
+    return bookedCakes.map((c) => ({ id: c.itemId, order_id: c.orderId }));
+  }
+  if (table === "cake_details") {
+    return bookedCakes.map((c) => ({ order_item_id: c.itemId }));
+  }
+  return TABLE_ROWS[table] ?? [];
+}
+
+type Filter = { op: "eq" | "neq" | "in"; column: string; value: unknown };
+
+function applyFilters(rows: Record<string, unknown>[], filters: Filter[]) {
+  return rows.filter((row) =>
+    filters.every((f) => {
+      const value = row[f.column];
+      if (f.op === "eq") return value === f.value;
+      if (f.op === "neq") return value !== f.value;
+      return Array.isArray(f.value) && f.value.includes(value);
+    }),
+  );
+}
 
 /** A minimal chainable Supabase query builder over a fixed row set. */
 function makeQuery(table: string) {
+  const filters: Filter[] = [];
+  let head = false;
+  let exactCount = false;
+
   const builder = {
-    select: () => builder,
-    eq: () => builder,
-    in: () => builder,
+    select: (_cols?: string, opts?: { count?: string; head?: boolean }) => {
+      head = opts?.head === true;
+      exactCount = opts?.count === "exact";
+      return builder;
+    },
+    eq: (column: string, value: unknown) => {
+      filters.push({ op: "eq", column, value });
+      return builder;
+    },
+    neq: (column: string, value: unknown) => {
+      filters.push({ op: "neq", column, value });
+      return builder;
+    },
+    in: (column: string, values: unknown[]) => {
+      filters.push({ op: "in", column, value: values });
+      return builder;
+    },
     order: () => builder,
     limit: () => builder,
     single: async () => {
@@ -43,11 +101,18 @@ function makeQuery(table: string) {
           error: null,
         };
       }
-      const rows = TABLE_ROWS[table] ?? [];
+      const rows = applyFilters(rowsFor(table), filters);
       return { data: rows[0] ?? null, error: null };
     },
-    then: (resolve: (v: unknown) => unknown) =>
-      Promise.resolve({ data: TABLE_ROWS[table] ?? [], error: null }).then(resolve),
+    then: (resolve: (v: unknown) => unknown) => {
+      const rows = applyFilters(rowsFor(table), filters);
+      const result = {
+        data: head ? null : rows,
+        count: exactCount ? rows.length : null,
+        error: null,
+      };
+      return Promise.resolve(result).then(resolve);
+    },
   };
   return builder;
 }
@@ -55,6 +120,7 @@ function makeQuery(table: string) {
 const fromMock = vi.fn((table: string) => {
   if (table === "orders") {
     return {
+      ...makeQuery(table),
       insert: (row: Record<string, unknown>) => {
         insertedOrders.push(row);
         return {
@@ -67,6 +133,7 @@ const fromMock = vi.fn((table: string) => {
   }
   if (table === "order_items") {
     return {
+      ...makeQuery(table),
       insert: (row: Record<string, unknown>) => {
         insertedItems.push(row);
         return {
@@ -79,6 +146,7 @@ const fromMock = vi.fn((table: string) => {
   }
   if (table === "cake_details") {
     return {
+      ...makeQuery(table),
       insert: (row: Record<string, unknown>) => {
         insertedCakeDetails.push(row);
         return { select: () => ({ single: async () => ({ data: row, error: null }) }) };
@@ -87,6 +155,7 @@ const fromMock = vi.fn((table: string) => {
   }
   if (table === "activity_log") {
     return {
+      ...makeQuery(table),
       insert: (row: Record<string, unknown>) => {
         insertedActivity.push(row);
         return { select: () => ({ single: async () => ({ data: row, error: null }) }) };
@@ -95,6 +164,7 @@ const fromMock = vi.fn((table: string) => {
   }
   if (table === "customers") {
     return {
+      ...makeQuery(table),
       upsert: (row: Record<string, unknown>) => {
         upsertedCustomers.push(row);
         return {
@@ -107,6 +177,7 @@ const fromMock = vi.fn((table: string) => {
   }
   if (table === "blocked_dates") {
     return {
+      ...makeQuery(table),
       select: () => ({
         then: (resolve: (v: unknown) => unknown) =>
           Promise.resolve({ data: [], error: null }).then(resolve),
@@ -118,7 +189,6 @@ const fromMock = vi.fn((table: string) => {
 
 const rpcMock = vi.fn(async (fn: string) => {
   if (fn === "next_order_number") return { data: "TCB-0001", error: null };
-  if (fn === "cake_load_for_date") return { data: 0, error: null };
   throw new Error(`unexpected rpc: ${fn}`);
 });
 
@@ -186,6 +256,7 @@ beforeEach(() => {
   insertedCakeDetails.length = 0;
   insertedActivity.length = 0;
   upsertedCustomers.length = 0;
+  bookedCakes = [];
   vi.clearAllMocks();
 });
 
@@ -305,5 +376,45 @@ describe("POST /api/orders", () => {
     const res = await POST(makeRequest(body));
     expect(res.status).toBe(400);
     expect(insertedOrders).toHaveLength(0);
+  });
+
+  it("rejects an order for a day that already holds the maximum number of cakes", async () => {
+    // The daily limit is 5 in the stubbed settings.
+    bookedCakes = Array.from({ length: 5 }, (_, i) => ({
+      orderId: `order-${i}`,
+      itemId: `item-${i}`,
+      date: "2099-06-15",
+      status: "confirmed",
+    }));
+
+    const res = await POST(makeRequest(validPayload()));
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toMatch(/fully booked/i);
+    expect(insertedOrders).toHaveLength(0);
+  });
+
+  it("ignores cakes booked for another date when checking capacity", async () => {
+    bookedCakes = Array.from({ length: 5 }, (_, i) => ({
+      orderId: `order-${i}`,
+      itemId: `item-${i}`,
+      date: "2099-07-01",
+      status: "confirmed",
+    }));
+
+    const res = await POST(makeRequest(validPayload()));
+    expect(res.status).toBe(200);
+  });
+
+  it("ignores cancelled orders when checking capacity", async () => {
+    bookedCakes = Array.from({ length: 5 }, (_, i) => ({
+      orderId: `order-${i}`,
+      itemId: `item-${i}`,
+      date: "2099-06-15",
+      status: "cancelled",
+    }));
+
+    const res = await POST(makeRequest(validPayload()));
+    expect(res.status).toBe(200);
   });
 });

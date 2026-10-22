@@ -98,4 +98,55 @@ describe("CartDrawer", () => {
     const checkout = screen.getByRole("link", { name: /checkout/i });
     expect(checkout).toHaveAttribute("href", "/checkout");
   });
+
+  it("removes a cake from the cart", async () => {
+    // The drawer keys a cake by "cake-<flavourId>" but the store removes by
+    // the flavour id — the two must agree or a cake can never be removed.
+    const user = userEvent.setup();
+    useCart.getState().addCake({
+      flavourId: "flav-rv",
+      flavourName: "Red Velvet",
+      flavourPricePerKg: 3200,
+      sizeId: "size-2",
+      kg: 2,
+      tierId: "tier-simple",
+      tierName: "Simple",
+      tierExtraFee: 0,
+      tierRequiresQuote: false,
+      designDescription: "",
+      cakeMessage: "",
+      allergies: "",
+      referencePhotos: [],
+    });
+
+    render(<CartDrawer depositThresholdKg={3} />);
+    await user.click(screen.getByRole("button", { name: /open cart/i }));
+    await user.click(screen.getByRole("button", { name: /remove red velvet/i }));
+
+    expect(useCart.getState().items).toHaveLength(0);
+  });
+
+  it("does not promise a deposit for a design that still needs a quote", async () => {
+    const user = userEvent.setup();
+    useCart.getState().addCake({
+      flavourId: "flav-rv",
+      flavourName: "Red Velvet",
+      flavourPricePerKg: 3200,
+      sizeId: "size-3",
+      kg: 3,
+      tierId: "tier-3d",
+      tierName: "Custom 3D",
+      tierExtraFee: 0,
+      tierRequiresQuote: true,
+      designDescription: "",
+      cakeMessage: "",
+      allergies: "",
+      referencePhotos: [],
+    });
+
+    render(<CartDrawer depositThresholdKg={3} />);
+    await user.click(screen.getByRole("button", { name: /open cart/i }));
+
+    expect(screen.queryByText(/deposit/i)).not.toBeInTheDocument();
+  });
 });

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 
 import { computeOrder } from "@/lib/order-compute";
+import { countCakesForDate } from "@/lib/cake-load";
 import type {
   CatalogueRows,
   OrderSettings,
@@ -122,24 +123,21 @@ export async function POST(
     const { catalogue, settings } = await loadCatalogue(service);
 
     // --- 4. live date state ---
-    const [blockedDates, load] = await Promise.all([
-      service.from("blocked_dates").select("date"),
-      service.rpc("cake_load_for_date", { date: payload.dateNeeded }),
-    ]);
-    if (blockedDates.error) {
-      throw new Error(`blocked_dates: ${blockedDates.error.message}`);
+    const { data: blockedDates, error: blockedError } = await service
+      .from("blocked_dates")
+      .select("date");
+    if (blockedError) {
+      throw new Error(`blocked_dates: ${blockedError.message}`);
     }
-    if (load.error) {
-      throw new Error(`cake_load_for_date: ${load.error.message}`);
-    }
-    const confirmedCountOnDate = typeof load.data === "number" ? load.data : 0;
+    // The capacity check counts the cakes already booked for that date.
+    const confirmedCountOnDate = await countCakesForDate(service, payload.dateNeeded);
 
     // --- 5. compute every price on the server ---
     const computed = computeOrder({
       payload,
       catalogue,
       settings,
-      blockedDates: (blockedDates.data ?? []).map((d) => d.date as string),
+      blockedDates: (blockedDates ?? []).map((d) => d.date as string),
       confirmedCountOnDate,
       now: new Date(),
     });

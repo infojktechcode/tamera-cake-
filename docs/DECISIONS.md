@@ -110,3 +110,80 @@ choice was made and recorded here.
   the README when Phase 7 touches it).
 - `manifest` metadata fixed to `/site.webmanifest`; the PWA work itself is
   Phase 7.
+
+## 8. Phase 3 (ordering)
+
+- **The order route is the security boundary.** The browser sends ids and
+  quantities only. `POST /api/orders` re-reads the catalogue and recomputes
+  every price, deposit and delivery fee from the database; the Zod schema is a
+  `strictObject`, so a tampered `unitPrice` or `total` is rejected rather than
+  silently corrected. The split is deliberate: `src/lib/order-compute.ts` holds
+  the pure arithmetic (18 tests, no database) and the route handler owns the
+  I/O (15 tests against a stubbed client).
+- **The capacity check does not use the `cake_load_for_date` SQL function.**
+  PostgREST matches RPC arguments by the parameter name declared in SQL, and
+  the live database's function is `cake_load_for_date(d date)`. Calling it with
+  `{ date: … }` fails with PGRST202 — which made **every order fail with a
+  500**. The route now counts the cakes with three indexed queries
+  (`src/lib/cake-load.ts`), which cannot break that way; the SQL function stays
+  in the schema for the production calendar and must be called with
+  `{ d: … }` until the live database is repaired.
+- **Reference photos are uploaded with a signed URL, not through the app
+  server.** `POST /api/upload` validates the mime type and size and hands back a
+  signed upload URL; the browser PUTs the bytes straight to Supabase storage.
+  A 5 MB photo would otherwise hit the serverless request-size limit, and the
+  bucket's own `file_size_limit` and `allowed_mime_types` still apply to the
+  PUT, so the rules are enforced twice. The storage path is built from the
+  *validated mime type* and a random id — a customer-supplied file name never
+  reaches the path.
+- **Photos are uploaded as they are picked, not at checkout.** The cart holds
+  storage paths, so the photos survive a reload and can be attached to the
+  order. The cost is an abandoned builder leaves an orphan file in the bucket;
+  the shop deletes unused files by hand until a cleanup job exists.
+- **The builder's date and fulfilment live in the cart, not in the cake item.**
+  The date and the delivery method belong to the order, so they are order-level
+  cart state (`CartState.details`). The checkout form starts from them instead
+  of asking the customer to repeat the decision.
+- **The cart has its own page.** The builder sends the customer to `/cart`; the
+  page shows the whole order, lets the customer remove a line and links to
+  checkout. It was missing at first, which dead-ended the journey on a 404.
+- **A quoted design carries no deposit.** The server (`order-compute.ts`) takes
+  no deposit for a tier with `requires_quote`, because there is no final price
+  to take a percentage of. The client used to promise a deposit the server
+  never asked for; the builder, the cart and the checkout now follow the server
+  rule.
+- **The rate limiter is per instance.** `src/lib/rate-limit.ts` keeps a
+  fixed-window counter in memory: six orders and twelve uploads per minute per
+  IP. It is not shared between instances and does not survive a restart — a
+  deliberate trade-off for the current single-instance deploy, swappable for a
+  shared store without changing the call sites.
+
+## 9. Phase 4 (orders dashboard)
+
+- **The status machine is pure and shared.** `src/lib/order-status.ts` holds
+  the allowed moves and is enforced twice: the dashboard only offers the moves
+  that are allowed, and `PATCH /api/admin/orders/[id]` refuses the rest. A
+  manager may cancel an order that is not confirmed yet; once the shop has
+  confirmed it, only the owner can cancel it. A pickup order skips the
+  `out_for_delivery` leg.
+- **The dashboard reads with the staff member's own session.** The admin
+  screens use the cookie-aware Supabase client, so Row Level Security decides
+  what a manager can see — the service-role key is only used to write the
+  activity log, which staff may not insert into themselves.
+- **Realtime is implemented, but the live database cannot deliver it yet.**
+  No table in the shop's Supabase project is in the `supabase_realtime`
+  publication, so no insert event is ever sent. The dashboard subscribes
+  anyway (it works the moment the publication is fixed) and polls every 20
+  seconds in the meantime, so a new order always shows up. Run
+  `supabase/database-repairs.sql` to switch the alerts from polling to
+  instant.
+- **New orders are announced three ways**: the row slides in with a highlight,
+  the sidebar badge counts up, and a short sound plays. The sound only plays
+  after the shop presses "Enable alerts", because browsers block audio before a
+  user gesture. The chime is built with the Web Audio API, so there is no
+  sound file to download.
+- **Staff sessions work with a cookie *or* a bearer token.** The dashboard uses
+  the cookie; scripts and API clients send `Authorization: Bearer …`, and
+  `getStaffSession()` returns both the identity and a client scoped to it, so
+  RLS applies either way.
+

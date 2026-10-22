@@ -16,6 +16,14 @@ export interface TemplateValues {
   name: string;
   total: string;
   date: string;
+  /** Balance still owed — used by the thank-you and deposit templates. */
+  balance?: string;
+  /** M-Pesa paybill — used by the deposit request template. */
+  payment?: string;
+  /** Product name — used by the product update template. */
+  product?: string;
+  /** Order link — used by the product update template. */
+  link?: string;
 }
 
 /** Replace every `{placeholder}` in the template with its value. */

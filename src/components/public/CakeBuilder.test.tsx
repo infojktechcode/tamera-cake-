@@ -43,6 +43,15 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, replace: vi.fn(), refresh: vi.fn() }),
 }));
 
+// The upload talks to Supabase storage — stub it so the tests stay offline.
+const uploadMock = vi.fn(async (file: File) => ({
+  path: `cakes/${file.name.replace(/\.[^.]+$/, "")}.jpg`,
+  name: file.name,
+}));
+vi.mock("@/lib/photo-upload", () => ({
+  uploadReferencePhoto: (file: File) => uploadMock(file),
+}));
+
 function renderBuilder(props: Partial<React.ComponentProps<typeof CakeBuilder>> = {}) {
   return render(
     <CakeBuilder
@@ -76,6 +85,8 @@ async function advanceToReview(user: ReturnType<typeof userEvent.setup>) {
   await user.click(nextButton());
   const dateInput = screen.getByLabelText(/pickup date/i);
   await user.type(dateInput, "2030-06-15");
+  await user.type(screen.getByLabelText(/time/i), "10:30");
+  await user.click(screen.getByRole("radio", { name: /deliver to/i }));
   await user.click(nextButton());
 }
 
@@ -153,6 +164,28 @@ describe("CakeBuilder", () => {
       expect(screen.getByText(/3 photo\(s\) selected/i)).toBeInTheDocument(),
     );
     expect(screen.getByRole("alert")).toHaveTextContent(/only 3 photos/i);
+    // The fourth file never reaches the upload.
+    expect(uploadMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("step 4: an upload failure is reported and nothing is added", async () => {
+    const user = userEvent.setup();
+    uploadMock.mockRejectedValueOnce(new Error("We could not upload that photo."));
+    renderBuilder();
+    await user.click(sizeChip("2kg"));
+    await user.click(nextButton());
+    await user.click(screen.getByRole("button", { name: /red velvet/i }));
+    await user.click(nextButton());
+    await user.click(screen.getByRole("radio", { name: /simple/i }));
+    await user.click(nextButton());
+
+    const input = screen.getByLabelText(/cake photos/i) as HTMLInputElement;
+    await user.upload(input, new File(["x"], "p1.jpg", { type: "image/jpeg" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /could not upload that photo/i,
+    );
+    expect(screen.queryByText(/photo\(s\) selected/i)).not.toBeInTheDocument();
   });
 
   it("step 6: the date input rejects a blocked date", async () => {
@@ -187,6 +220,49 @@ describe("CakeBuilder", () => {
     expect(cake.kg).toBe(2);
     expect(cake.tierId).toBe("tier-simple");
     expect(pushMock).toHaveBeenCalledWith("/cart");
+  });
+
+  it("review step: the date, time and delivery zone carry into the cart", async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+    await advanceToReview(user);
+
+    await user.click(screen.getByRole("button", { name: /add to cart/i }));
+
+    const details = useCart.getState().details;
+    expect(details.dateNeeded).toBe("2030-06-15");
+    expect(details.timeNeeded).toBe("10:30");
+    expect(details.fulfilment.kind).toBe("delivery");
+    expect(details.fulfilment.zoneId).toBe("zone-kitengela");
+    expect(details.fulfilment.fee).toBe(200);
+    expect(details.fulfilment.chosen).toBe(true);
+  });
+
+  it("review step: the uploaded photo paths are stored with the cake", async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+    await user.click(sizeChip("2kg"));
+    await user.click(nextButton());
+    await user.click(screen.getByRole("button", { name: /red velvet/i }));
+    await user.click(nextButton());
+    await user.click(screen.getByRole("radio", { name: /simple/i }));
+    await user.click(nextButton());
+
+    const input = screen.getByLabelText(/cake photos/i) as HTMLInputElement;
+    await user.upload(input, new File(["x"], "p1.jpg", { type: "image/jpeg" }));
+    await waitFor(() => expect(uploadMock).toHaveBeenCalled());
+
+    await user.click(nextButton());
+    await user.click(nextButton());
+    await user.click(nextButton());
+    await user.type(screen.getByLabelText(/pickup date/i), "2030-06-15");
+    await user.click(nextButton());
+    await user.click(screen.getByRole("button", { name: /add to cart/i }));
+
+    const items = useCart.getState().items;
+    const cake = items[0];
+    if (cake.kind !== "cake") throw new Error("expected a cake item");
+    expect(cake.referencePhotos).toEqual(["cakes/p1.jpg"]);
   });
 
   it("preselects the flavour passed in via the URL query", async () => {

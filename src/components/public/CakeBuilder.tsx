@@ -1,12 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { FadeUp } from "@/components/motion";
 import { useCart } from "@/lib/cart-store";
 import type { CakeSize, DesignTier, DeliveryZone, OrderSettings } from "@/lib/builder-data";
 import type { FlavourCard } from "@/lib/catalog";
+import { publicPhotoUrlFromEnv } from "@/lib/photo-paths";
+import { uploadReferencePhoto } from "@/lib/photo-upload";
 import { depositRequired } from "@/lib/pricing";
 
 /**
@@ -37,9 +40,9 @@ const BUILDER_STORAGE_KEY = "tamera-cake-builder";
 /**
  * Persisted form state.
  *
- * `referencePhotos` (File objects) and `deliveryZone` (a whole row) are not
- * serialised: the photos live only in memory, and the zone is restored by id
- * from the catalogue passed in as props.
+ * `deliveryZone` (a whole row) is not serialised: it is restored by id from
+ * the catalogue passed in as props. The reference photos are stored as their
+ * storage paths, so they survive a reload too.
  */
 interface PersistedForm {
   sizeId: string | null;
@@ -54,7 +57,9 @@ interface PersistedForm {
   designDescription: string;
   cakeMessage: string;
   allergies: string;
+  referencePhotos: string[];
   pickupDate: string | null;
+  pickupTime: string | null;
   deliveryZoneId: string | null;
   step: number;
 }
@@ -73,7 +78,9 @@ function saveBuilderForm(state: FormState): void {
     designDescription: state.designDescription,
     cakeMessage: state.cakeMessage,
     allergies: state.allergies,
+    referencePhotos: state.referencePhotos,
     pickupDate: state.pickupDate,
+    pickupTime: state.pickupTime,
     deliveryZoneId: state.deliveryZone?.id ?? null,
     step: state.step,
   };
@@ -105,7 +112,9 @@ function restoreBuilderForm(): PersistedForm | null {
       designDescription: parsed.designDescription ?? "",
       cakeMessage: parsed.cakeMessage ?? "",
       allergies: parsed.allergies ?? "",
+      referencePhotos: Array.isArray(parsed.referencePhotos) ? parsed.referencePhotos : [],
       pickupDate: parsed.pickupDate ?? null,
+      pickupTime: parsed.pickupTime ?? null,
       deliveryZoneId: parsed.deliveryZoneId ?? null,
       step: step >= 1 && step <= 7 ? step : 1,
     };
@@ -140,8 +149,10 @@ interface FormState {
   designDescription: string;
   cakeMessage: string;
   allergies: string;
-  referencePhotos: File[];
+  /** Storage paths of the uploaded reference photos. */
+  referencePhotos: string[];
   pickupDate: string | null;
+  pickupTime: string | null;
   deliveryZone: DeliveryZone | null;
   step: Step;
 }
@@ -161,6 +172,7 @@ const INITIAL_FORM: FormState = {
   allergies: "",
   referencePhotos: [],
   pickupDate: null,
+  pickupTime: null,
   deliveryZone: null,
   step: 1,
 };
@@ -177,6 +189,8 @@ export function CakeBuilder({
   const router = useRouter();
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [dateError, setDateError] = useState<string | null>(null);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const restoredRef = useRef(false);
 
   /**
@@ -239,8 +253,11 @@ export function CakeBuilder({
     Math.round(form.kg * form.flavourPricePerKg) + form.tierExtraFee;
 
   const deposit = depositRequired({
-    anyCakeOverThreshold: form.kg >= settings.deposit_threshold_kg,
-    anyNonSimpleTier: form.tierName !== "Simple",
+    // A design the shop still has to quote carries no deposit yet — the same
+    // rule the server applies in `order-compute.ts`.
+    anyCakeOverThreshold:
+      !form.tierRequiresQuote && form.kg >= settings.deposit_threshold_kg,
+    anyNonSimpleTier: !form.tierRequiresQuote && form.tierName !== "Simple",
     total: basePrice,
     depositPercent: settings.deposit_percent,
   });
@@ -299,6 +316,22 @@ export function CakeBuilder({
       allergies: form.allergies,
       referencePhotos: form.referencePhotos,
     });
+    // The date and the fulfilment belong to the order, not to the cake — carry
+    // them into the cart so the checkout form starts from them instead of
+    // asking the customer to repeat the decision.
+    useCart.getState().setDetails({
+      dateNeeded: form.pickupDate,
+      timeNeeded: form.pickupTime,
+      fulfilment: form.deliveryZone
+        ? {
+            kind: "delivery",
+            zoneId: form.deliveryZone.id,
+            zoneName: form.deliveryZone.name,
+            fee: form.deliveryZone.fee,
+            chosen: true,
+          }
+        : { kind: "pickup", zoneId: null, zoneName: null, fee: 0, chosen: true },
+    });
     // The cake is in the cart now — a fresh builder should start from step 1.
     try {
       sessionStorage.removeItem(BUILDER_STORAGE_KEY);
@@ -308,7 +341,14 @@ export function CakeBuilder({
     router.push("/cart");
   };
 
-  const handlePhotos = (files: FileList | null) => {
+  /**
+   * Upload the photos the customer picked.
+   *
+   * The files go to Supabase storage straight away (through a signed URL), so
+   * the cart holds storage paths rather than `File` objects — that way the
+   * photos survive a reload and can be attached to the order.
+   */
+  const handlePhotos = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setPhotoError(null);
 
@@ -322,20 +362,36 @@ export function CakeBuilder({
       return;
     }
 
-    setForm((p) => {
-      const room = MAX_PHOTOS - p.referencePhotos.length;
-      if (room <= 0) {
-        setPhotoError(`You can add up to ${MAX_PHOTOS} photos.`);
-        return p;
+    const room = MAX_PHOTOS - form.referencePhotos.length;
+    if (room <= 0) {
+      setPhotoError(`You can add up to ${MAX_PHOTOS} photos.`);
+      return;
+    }
+
+    const accepted = Array.from(files).slice(0, room);
+    if (files.length > room) {
+      setPhotoError(
+        `Only ${MAX_PHOTOS} photos are allowed — the extra files were ignored.`,
+      );
+    } else {
+      setPhotoError(null);
+    }
+
+    setUploadingPhotos(true);
+    try {
+      const uploaded: string[] = [];
+      for (const file of accepted) {
+        const photo = await uploadReferencePhoto(file);
+        uploaded.push(photo.path);
       }
-      const accepted = Array.from(files).slice(0, room);
-      if (files.length > room) {
-        setPhotoError(
-          `Only ${MAX_PHOTOS} photos are allowed — the extra files were ignored.`,
-        );
-      }
-      return { ...p, referencePhotos: [...p.referencePhotos, ...accepted] };
-    });
+      setForm((p) => ({ ...p, referencePhotos: [...p.referencePhotos, ...uploaded] }));
+    } catch (e) {
+      setPhotoError(
+        e instanceof Error ? e.message : "We could not upload that photo. Please try again.",
+      );
+    } finally {
+      setUploadingPhotos(false);
+    }
   };
 
   const removePhoto = (index: number) => {
@@ -556,20 +612,34 @@ export function CakeBuilder({
                   Optional — up to {MAX_PHOTOS} photos, {MAX_PHOTO_SIZE_MB}MB each.
                 </p>
 
-                <label htmlFor="cake-photos" className="mt-4 flex min-h-12 cursor-pointer items-center justify-center rounded-2xl border border-dashed border-cocoa/25 bg-vanilla/40 px-4 py-6 text-center text-sm text-ink-muted transition hover:border-cocoa/40">
+                <label
+                  htmlFor="cake-photos"
+                  className="mt-4 flex min-h-12 cursor-pointer items-center justify-center rounded-2xl border border-dashed border-cocoa/25 bg-vanilla/40 px-4 py-6 text-center text-sm text-ink-muted transition hover:border-cocoa/40"
+                >
                   <span>
-                    Tap to add photos
+                    {uploadingPhotos ? "Uploading…" : "Tap to add photos"}
                     <input
                       id="cake-photos"
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
                       multiple
+                      disabled={uploadingPhotos}
                       aria-label="Cake photos"
-                      onChange={(e) => handlePhotos(e.target.files)}
+                      onChange={(e) => {
+                        void handlePhotos(e.target.files);
+                        // Allow the same file to be picked again after a removal.
+                        e.target.value = "";
+                      }}
                       className="sr-only"
                     />
                   </span>
                 </label>
+
+                {uploadingPhotos && (
+                  <p className="mt-3 text-sm text-ink-muted">
+                    Sending your photo to the shop…
+                  </p>
+                )}
 
                 {photoError && (
                   <p role="alert" className="mt-3 text-sm text-strawberry-deep">
@@ -579,26 +649,36 @@ export function CakeBuilder({
 
                 {form.referencePhotos.length > 0 && (
                   <ul className="mt-4 flex flex-wrap gap-3">
-                    {form.referencePhotos.map((photo, i) => (
-                      <li key={`${photo.name}-${i}`} className="relative">
-                        <span className="block h-20 w-20 overflow-hidden rounded-xl border border-cocoa/10">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={URL.createObjectURL(photo)}
-                            alt={photo.name}
-                            className="h-full w-full object-cover"
-                          />
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => removePhoto(i)}
-                          aria-label={`Remove ${photo.name}`}
-                          className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-cocoa text-xs text-white"
-                        >
-                          ×
-                        </button>
-                      </li>
-                    ))}
+                    {form.referencePhotos.map((photo, i) => {
+                      const src = publicPhotoUrlFromEnv(photo);
+                      return (
+                        <li key={photo} className="relative">
+                          <span className="block h-20 w-20 overflow-hidden rounded-xl border border-cocoa/10">
+                            {src ? (
+                              <Image
+                                src={src}
+                                alt={`Reference photo ${i + 1}`}
+                                width={80}
+                                height={80}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <span className="flex h-full w-full items-center justify-center text-xs text-ink-muted">
+                                Photo {i + 1}
+                              </span>
+                            )}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removePhoto(i)}
+                            aria-label={`Remove reference photo ${i + 1}`}
+                            className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-cocoa text-xs text-white"
+                          >
+                            ×
+                          </button>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
                 {form.referencePhotos.length > 0 && (
@@ -667,12 +747,28 @@ export function CakeBuilder({
                       const value = e.target.value;
                       if (!value) return;
                       if (blocked.has(value)) {
-                        setPhotoError("That day is closed. Please pick another date.");
+                        setDateError("That day is closed. Please pick another date.");
                         return;
                       }
-                      setPhotoError(null);
+                      setDateError(null);
                       setForm((p) => ({ ...p, pickupDate: value }));
                     }}
+                    className="mt-1 w-full rounded-xl border border-cocoa/15 bg-vanilla/40 p-3 text-cocoa focus:border-strawberry focus:outline-none"
+                  />
+                </label>
+
+                <label htmlFor="pickup-time" className="mt-4 block text-sm font-medium text-cocoa">
+                  Time (optional)
+                  <input
+                    id="pickup-time"
+                    type="time"
+                    value={form.pickupTime ?? ""}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        pickupTime: e.target.value || null,
+                      }))
+                    }
                     className="mt-1 w-full rounded-xl border border-cocoa/15 bg-vanilla/40 p-3 text-cocoa focus:border-strawberry focus:outline-none"
                   />
                 </label>
@@ -682,9 +778,9 @@ export function CakeBuilder({
                     Blocked: {blockedDates.join(", ")}
                   </p>
                 )}
-                {photoError && (
+                {dateError && (
                   <p role="alert" className="mt-3 text-sm text-strawberry-deep">
-                    {photoError}
+                    {dateError}
                   </p>
                 )}
 
@@ -764,6 +860,7 @@ export function CakeBuilder({
                     }
                   />
                   <Row label="Pickup date" value={form.pickupDate ?? "—"} />
+                  <Row label="Pickup time" value={form.pickupTime ?? "Any time"} />
                   <Row
                     label="Delivery"
                     value={
