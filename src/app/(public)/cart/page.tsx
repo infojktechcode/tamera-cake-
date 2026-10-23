@@ -1,7 +1,7 @@
 "use client";
 
-import { useCartStore } from "../../lib/cart-store";
-import { CartView } from "../../components/public/CartView";
+import { useCartStore } from "@/lib/cart-store";
+import { CartView } from "@/components/public/CartView";
 
 export default function CartPage() {
   const items = useCartStore((s) => s.items);

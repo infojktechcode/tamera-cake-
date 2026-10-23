@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { NextRequest } from "next/server";
-import { getSupabaseService } from "../../lib/supabase/service";
-import { PhotoUploadInput, type PhotoUploadInputType } from "../../lib/validators/upload.schema";
+import { getSupabaseService } from "@/lib/supabase/service";
+import { PhotoUploadInput, type PhotoUploadInputType } from "@/lib/validators/upload.schema";
 
 /** Simple in-memory per-IP rate limiter: 1 upload every 5s per IP. */
 const buckets = new Map<string, number>();

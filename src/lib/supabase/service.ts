@@ -8,6 +8,10 @@ import { getServiceRoleKey, getSupabaseUrl } from "./env";
  * staff accounts) and server-side jobs that must write to protected tables.
  * Never import from a client component or expose to the browser.
  */
+export function getSupabaseService() {
+  return createServiceClient();
+}
+
 export function createServiceClient() {
   return createSupabaseClient(getSupabaseUrl(), getServiceRoleKey(), {
     auth: { persistSession: false, autoRefreshToken: false },

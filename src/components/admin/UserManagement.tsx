@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { updateUserStatus, createManager } from "./actions";
+import { updateUserStatus, createManager } from "@/app/admin/users/actions";
 
 interface UserRowProps {
   user: { id: string; full_name: string; role: string; active: boolean };

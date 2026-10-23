@@ -5,7 +5,7 @@ import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { toggleDateBlock, unblockDate } from "./actions";
+import { toggleDateBlock, unblockDate } from "@/app/admin/calendar/actions";
 
 interface CalendarProps {
   initialData: {
