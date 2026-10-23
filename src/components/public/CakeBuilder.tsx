@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createCartStore } from "../../lib/cart-store";
-import { getSizes, getDesignTiers, getDeliveryZones, getBlockedDates, getOrderSettings } from "../../lib/builder-data;
+import { getSizes, getDesignTiers, getDeliveryZones, getBlockedDates, getOrderSettings } from "../../lib/builder-data";
 import { cartTotal, itemCount, hasCakes, hasCakesRequiringDeposit } from "../../lib/cart-store";
 import { depositParity } from "../../lib/order-compute";
 import type { OrderSettings } from "../../lib/builder-data";
