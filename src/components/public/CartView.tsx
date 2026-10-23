@@ -21,7 +21,7 @@ export function CartView({ items, onRemove }: CartViewProps) {
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8">
       <header className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-cocoa">Your order</h>
+        <h1 className="text-2xl font-bold text-cocoa">Your order</h1>
         <Link href="/checkout" className="rounded-full bg-primary px-5 py-2 font-medium text-white transition hover:bg-primary/90">
           Checkout →
         </Link>

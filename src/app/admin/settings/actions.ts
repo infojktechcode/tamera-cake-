@@ -1,3 +1,5 @@
+"use server";
+
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl, getSupabasePublishableKey } from "@/lib/supabase/env";
 import { requireUser } from "@/lib/session";
@@ -5,7 +7,6 @@ import { can } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 
 export async function getSettings() {
-  "use server";
   const user = await requireUser();
   const supabase = createClient(getSupabaseUrl(), getSupabasePublishableKey());
   const { data } = await supabase.from("settings").select("*").single();
@@ -13,7 +14,6 @@ export async function getSettings() {
 }
 
 export async function updateSettings(formData: FormData) {
-  "use server";
   const user = await requireUser();
   if (!can(user.role, "editSettings")) {
     throw new Error("Unauthorized");

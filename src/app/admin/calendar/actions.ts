@@ -1,3 +1,5 @@
+"use server";
+
 import {
   can,
 } from "@/lib/permissions";
@@ -7,7 +9,6 @@ import { getSupabaseUrl, getSupabasePublishableKey } from "@/lib/supabase/env";
 import { revalidatePath } from "next/cache";
 
 export async function toggleDateBlock(date: string, reason: string) {
-  "use server";
   const user = await requireUser();
   if (!can(user.role, "editSettings")) {
     throw new Error("Unauthorized");
@@ -31,7 +32,6 @@ export async function toggleDateBlock(date: string, reason: string) {
 }
 
 export async function unblockDate(date: string) {
-  "use server";
   const user = await requireUser();
   if (!can(user.role, "editSettings")) {
     throw new Error("Unauthorized");

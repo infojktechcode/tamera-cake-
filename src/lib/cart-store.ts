@@ -40,6 +40,7 @@ export function createCartStore() {
       (set) => ({
         ...recompute([]),
 
+
         // Quote-only tiers never show a deposit.
         depositRequired: false,
 
@@ -113,3 +114,5 @@ export function createCartStore() {
     ),
   );
 }
+
+export const useCartStore = createCartStore();

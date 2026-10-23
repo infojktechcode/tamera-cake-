@@ -1,3 +1,5 @@
+"use server";
+
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl, getSupabasePublishableKey } from "@/lib/supabase/env";
 import { requireUser } from "@/lib/session";
@@ -5,7 +7,6 @@ import { can } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 
 export async function getUsers() {
-  "use server";
   const user = await requireUser();
   if (!can(user.role, "viewUsers")) {
     throw new Error("Unauthorized");
@@ -21,7 +22,6 @@ export async function getUsers() {
 }
 
 export async function updateUserStatus(userId: string, active: boolean) {
-  "use server";
   const user = await requireUser();
   if (!can(user.role, "viewUsers")) {
     throw new Error("Unauthorized");
@@ -40,7 +40,6 @@ export async function updateUserStatus(userId: string, active: boolean) {
 }
 
 export async function createManager(formData: FormData) {
-  "use server";
   const user = await requireUser();
   if (user.role !== "superadmin") {
     throw new Error("Only the owner can create managers.");
