@@ -1,32 +1,28 @@
-// Pure pricing functions (unit tested). All money in integer KES.
+// Pure, testable cake and cart price functions (money in integer KES).
 
-export interface CakePriceInput {
-  pricePerKg: number;
-  sizeKg: number;
-  tierExtraFee: number;
-}
+import type { CakeCartItem, PastryCartItem } from "../types/cart";
 
-export function cakePrice(i: CakePriceInput): number {
+/** Cake price — base + tier extra fee, all integer KES. */
+export function cakePrice(i: { pricePerKg: number; sizeKg: number; tierExtraFee: number }): number {
   return Math.round(i.pricePerKg * i.sizeKg + i.tierExtraFee);
 }
 
-export interface PastryLine {
-  unitPrice: number;
-  quantity: number;
-}
-
+/** Line total for a pastry line. */
 export function lineTotal(l: PastryLine): number {
   return l.unitPrice * l.quantity;
 }
 
+interface PastryLine {
+  unitPrice: number;
+  quantity: number;
+}
+
+/** Cart subtotal across pastry lines (cake handled separately by cart-store). */
 export function cartSubtotal(lines: PastryLine[]): number {
   return lines.reduce((s, l) => s + lineTotal(l), 0);
 }
 
-export function orderTotal(subtotal: number, deliveryFee: number): number {
-  return subtotal + Math.max(0, deliveryFee);
-}
-
+/** Deposit rule — shared by client UI and server compute so they never disagree. */
 export interface DepositRequiredInput {
   anyCakeOverThreshold: boolean;
   anyNonSimpleTier: boolean;

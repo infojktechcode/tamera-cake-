@@ -1,5 +1,12 @@
-import { ScreenPlaceholder } from "@/components/admin/screen-placeholder";
+import { getUsers } from "./actions";
+import { UserManagement } from "@/components/admin/UserManagement";
 
-export default function Page() {
-  return <ScreenPlaceholder title="Users" description="Create and manage staff accounts. Only the owner can create managers (owner only)." />;
+export default async function UsersPage() {
+  const users = await getUsers();
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <UserManagement initialUsers={users} />
+    </div>
+  );
 }

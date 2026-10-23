@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { logout } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
+import { OrderNotifications } from "@/components/admin/OrderNotifications";
 import {
   can,
   isAdminPathAllowed,
@@ -135,7 +136,7 @@ export default async function AdminLayout({
               </Button>
             </form>
           </header>
-
+          <OrderNotifications />
           <main className="flex-1 px-4 py-5 pb-24 lg:px-8 lg:pb-8">{children}</main>
         </div>
       </div>

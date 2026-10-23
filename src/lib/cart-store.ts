@@ -1,21 +1,18 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type {
-  CakeCartItem,
-  PastryCartItem,
-  CartItem,
-  CartState,
-} from "../types/cart";
+import type { CakeCartItem, CartItem, CartState } from "../types/cart";
 
-// --- pure cart helpers (exportable for testing/SSR) ---
+/** Pure cart helpers (exported for testing/SSR). */
 
 export function cartTotal(items: CartItem[]): number {
-  return items.reduce((sum, item) => {
-    if (item.kind === "cake") {
-      return sum + Math.round(item.flavourPricePerKg * item.kg + item.tierExtraFee);
-    }
-    return sum + item.unitPrice * item.quantity;
-  }, 0);
+  return items.reduce((sum, item) => sum + cartLineTotal(item), 0);
+}
+
+function cartLineTotal(item: CartItem): number {
+  if (item.kind === "cake") {
+    return Math.round((item.flavourPricePerKg * item.kg + (item as CakeCartItem).tierExtraFee));
+  }
+  return item.unitPrice * item.quantity;
 }
 
 export function itemCount(items: CartItem[]): number {
@@ -25,17 +22,6 @@ export function itemCount(items: CartItem[]): number {
 export function hasCakes(items: CartItem[]): boolean {
   return items.some((i) => i.kind === "cake");
 }
-
-export function hasCakesRequiringDeposit(items: CartItem[], depositThresholdKg: number): boolean {
-  return items.some((item) => {
-    if (item.kind !== "cake") return false;
-    return item.kg >= depositThresholdKg || item.tierName !== "Simple";
-  });
-}
-
-// --- re-exports for test imports ---
-
-export type { CartState } from "../types/cart";
 
 /** Recompute derived fields from items. */
 function recompute(items: CartItem[]) {
@@ -47,15 +33,15 @@ function recompute(items: CartItem[]) {
   };
 }
 
-/** Re-create the store per call (for testing). Production uses the singleton. */
+/** Create a fresh store instance — call once per page load / test. */
 export function createCartStore() {
   return create<CartState>()(
     persist(
-      (set, get) => ({
+      (set) => ({
         ...recompute([]),
 
-        hasCakesRequiringDeposit: (depositThresholdKg: number) =>
-          hasCakesRequiringDeposit(get().items, depositThresholdKg),
+        // Quote-only tiers never show a deposit.
+        depositRequired: false,
 
         addCake: (item) => {
           const cake: CakeCartItem = { ...item, kind: "cake" };
@@ -64,10 +50,10 @@ export function createCartStore() {
 
         addPastry: (item) => {
           set((state) => {
-            const existing = state.items.find(
-              (i): i is PastryCartItem => i.kind === "pastry" && i.productId === item.productId,
+            const existingPastry = state.items.find(
+              (i): i is Extract<CartItem, { kind: "pastry" }> => i.kind === "pastry" && i.productId === item.productId,
             );
-            if (existing) {
+            if (existingPastry) {
               return recompute(
                 state.items.map((i) =>
                   i.kind === "pastry" && i.productId === item.productId
@@ -95,7 +81,7 @@ export function createCartStore() {
             recompute(
               quantity <= 0
                 ? state.items.filter(
-                    (i): i is PastryCartItem =>
+                    (i): i is Extract<CartItem, { kind: "pastry" }> =>
                       !(i.kind === "pastry" && i.productId === productId),
                   )
                 : state.items.map((i) =>
@@ -122,17 +108,7 @@ export function createCartStore() {
       {
         name: "tamera-cart",
         storage: createJSONStorage(() => sessionStorage as unknown as Storage),
-        // File objects (referencePhotos) can't serialize; strip on persist.
-        partialize: (state) => ({
-          items: state.items.map((item) => {
-            if (item.kind === "cake") {
-              const { referencePhotos: _omit, ...rest } = item;
-              void _omit;
-              return rest;
-            }
-            return item;
-          }),
-        }),
+        // Photos are now plain strings and persist naturally.
       },
     ),
   );

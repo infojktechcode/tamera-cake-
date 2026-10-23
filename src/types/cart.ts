@@ -13,8 +13,11 @@ export interface CakeCartItem {
   designDescription: string;
   cakeMessage: string;
   allergies: string;
-  /** File objects — in-memory only, never persisted to sessionStorage. */
-  referencePhotos: File[];
+  /** Storage paths to reference photos, persisted in sessionStorage. */
+  referencePhotos: string[];
+  /** Optional order-level details carried through from the builder/checkout. */
+  dateNeeded?: string | null;
+  deliveryZone?: { id: string; name: string; fee: number } | null;
 }
 
 export interface PastryCartItem {

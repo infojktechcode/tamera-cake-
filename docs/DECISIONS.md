@@ -22,7 +22,7 @@ choice was made and recorded here.
 ## 2. Roles & access control
 
 - Roles are exactly `superadmin` (owner) and `manager` — matching the
-  `user_role` enum in `0001_enums.sql`. There is no cashier role.
+  `user_age` enum in `0001_enums.sql`. There is no cashier role.
 - Capability matrix lives in `src/lib/permissions.ts`
   (`capabilities`, `can()`, `isAdminPathAllowed()`).
 - Enforcement is layered, not button-hiding:
@@ -48,8 +48,7 @@ choice was made and recorded here.
 ## 4. Auth
 
 - Staff sign in with **email + password** (Supabase Auth), not phone + PIN —
-  the technical plan specifies email/password and Supabase Auth handles
-  reset flows for free.
+  the technical plan specifies email/password and Supabase Auth handles reset flows for free.
 - Inactive profiles are rejected at login (sign-out after check) and again by
   `requireUser()` on every admin render.
 - Customers never authenticate; public site is anon-only.
@@ -61,7 +60,7 @@ choice was made and recorded here.
   `export const instant = false` to opt their segments out of instant-nav
   validation (the overview page calls `requireUser()` itself, so the layout's
   export alone doesn't cover it). Result: `pnpm build` shows all `/admin/*`
-  routes as `ƒ` (dynamic) with zero prerender warnings.
+  routes as `ƒ` (dynamic) with zero prender warnings.
 
 ## 5. Seed data
 
@@ -110,3 +109,29 @@ choice was made and recorded here.
   the README when Phase 7 touches it).
 - `manifest` metadata fixed to `/site.webmanifest`; the PWA work itself is
   Phase 7.
+
+## 8. Phase 3 (ordering completion)
+
+### What was built
+
+The customer journey is now end-to-end on a 360px phone: build a cake (size →
+flavour → design tier → upload reference photos → message → pickup date →
+review → add to cart → cart page → checkout), with every price recomputed
+server-side from catalogue ids. Five defects closed:
+
+| # | Defect | Fix |
+|---|--------|-----|
+| D1 | `CakeBuilder` pushed to `/cart` but no route existed | Added `src/app/(public)/cart/page.tsx` + `CartView.tsx` |
+| D2 | Reference photos were `File[]`, never uploaded | New signed-URL upload route `POST /api/upload`; `referencePhotos` now stores storage paths |
+| D3 | Date and zone collected at step 6 then discarded | Stored on the cake cart item (`dateNeeded`, `deliveryZone`) and flow through `addCake` |
+| D4 | `CartDrawer.removeItem("cake-<uuid>")` matched nothing | `removeItem` matches by `flavourId` / `productId`; id helper exported |
+| D5 | Client showed deposit for quote-only tier, server never did | `orderCompute.depositParity` shares the same rule as `pricing.depositRequired`; UI branch removed |
+| D6 | `setPhotoError` called inside a `setForm` updater; `createObjectURL` leaked | Both removed |
+| D7 | No security headers | Headers block in `next.config.ts`: CSP, `frame-ancestors 'none'`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` |
+
+### Key invariants held across the changes
+
+- `referencePhotos: string[]` in `types/cart.ts` — plain strings, persisted, no strip.
+- `addCake` accepts `dateNeeded` and `deliveryZone` optional fields.
+- Deposit shown only when `deposit > 0` — matches `computeOrder` parity exactly.
+- E2E spec `e2e/order-journey.spec.ts` drives a full mixed order at 360px.
