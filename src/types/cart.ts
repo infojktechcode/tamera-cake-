@@ -1,4 +1,11 @@
 /** Cart item for a custom cake build. */
+export interface OrderSettings {
+  min_lead_days: number;
+  daily_limit: number;
+  deposit_percent: number;
+  deposit_threshold_kg: number;
+}
+
 export interface CakeCartItem {
   kind: "cake";
   flavourId: string;

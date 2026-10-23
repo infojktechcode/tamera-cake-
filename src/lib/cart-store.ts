@@ -23,6 +23,12 @@ export function hasCakes(items: CartItem[]): boolean {
   return items.some((i) => i.kind === "cake");
 }
 
+export function hasCakesRequiringDeposit(items: CartItem[], threshold: number): boolean {
+  return items.some(
+    (i) => i.kind === "cake" && (i.kg >= threshold || i.tierName !== "Simple")
+  );
+}
+
 /** Recompute derived fields from items. */
 function recompute(items: CartItem[]) {
   return {
@@ -30,6 +36,7 @@ function recompute(items: CartItem[]) {
     cartTotal: cartTotal(items),
     itemCount: itemCount(items),
     hasCakes: hasCakes(items),
+    hasCakesRequiringDeposit: (threshold: number) => hasCakesRequiringDeposit(items, threshold),
   };
 }
 
