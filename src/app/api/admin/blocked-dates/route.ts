@@ -58,16 +58,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-  try {
-    await createServiceClient().from("activity_log").insert({
-      user_id: session.user.id,
-      action: "date_blocked",
-      table_name: "blocked_dates",
-      record_id: null,
-      new_value: { date, reason: reason ?? null },
-    });
-  } catch (e) {
-    console.error(`activity_log (blocked date): ${(e as Error).message}`);
+  const { error: logError } = await createServiceClient().from("activity_log").insert({
+    user_id: session.user.id,
+    action: "date_blocked",
+    table_name: "blocked_dates",
+    record_id: null,
+    new_value: { date, reason: reason ?? null },
+  });
+  if (logError) {
+    console.error(`activity_log (blocked date): ${logError.message}`);
   }
 
   return NextResponse.json({ ok: true, date, blocked: true });
@@ -109,16 +108,15 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-  try {
-    await createServiceClient().from("activity_log").insert({
-      user_id: session.user.id,
-      action: "date_unblocked",
-      table_name: "blocked_dates",
-      record_id: null,
-      new_value: { date: parse.data.date },
-    });
-  } catch (e) {
-    console.error(`activity_log (unblocked date): ${(e as Error).message}`);
+  const { error: logError } = await createServiceClient().from("activity_log").insert({
+    user_id: session.user.id,
+    action: "date_unblocked",
+    table_name: "blocked_dates",
+    record_id: null,
+    new_value: { date: parse.data.date },
+  });
+  if (logError) {
+    console.error(`activity_log (unblocked date): ${logError.message}`);
   }
 
   return NextResponse.json({ ok: true, date: parse.data.date, blocked: false });
