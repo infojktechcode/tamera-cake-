@@ -29,7 +29,7 @@ export function CartView({ items, onRemove }: CartViewProps) {
 
       <ul className="space-y-4">
         {items.map((item) => (
-          <li key={item.kind + item.productId ?? item.flavourId} className="rounded-2xl border border-cocoa/10 bg-cream p-4">
+          <li key={item.kind + (item.productId ?? item.flavourId)} className="rounded-2xl border border-cocoa/10 bg-cream p-4">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-cocoa">{item.kind === "cake" ? item.flavourName : item.name}</p>
@@ -46,7 +46,7 @@ export function CartView({ items, onRemove }: CartViewProps) {
             </div>
           </li>
         ))}
-      </footer>
+      </ul>
 
       <footer className="mt-6 border-t border-cocoa/10 pt-4">
         <p className="text-ink-muted">Total: <span className="font-semibold text-primary">{Math.round(items.reduce((s, i) => s + lineTotalOf(i), 0))}</span></p>
@@ -60,7 +60,7 @@ export function CartView({ items, onRemove }: CartViewProps) {
 
 function lineTotalOf(item: CartItem): number {
   if (item.kind === "cake") {
-    return Math.round(item.flavourPricePerKg * item.kg + (item as unknown as { tierExtraFee: number }).tierExtraFee);
+    return Math.round(item.flavourPricePerKg * item.kg + (item as any).tierExtraFee);
   }
   return item.unitPrice * item.quantity;
 }

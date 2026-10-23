@@ -3,7 +3,7 @@ import { getSupabaseUrl, getSupabasePublishableKey } from "@/lib/supabase/env";
 import { requireUser } from "@/lib/session";
 
 export async function getSalesKPIs() {
-  "use server";
+  
   const user = await requireUser();
 
   const supabase = createClient(getSupabaseUrl(), getSupabasePublishableKey());
@@ -39,7 +39,7 @@ export async function getSalesKPIs() {
 }
 
 export async function getSalesGrowth() {
-  "use server";
+  
   const user = await requireUser();
   const supabase = createClient(getSupabaseUrl(), getSupabasePublishableKey());
 

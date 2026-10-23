@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
 
 export async function getFinanceData() {
-  "use server";
+  
   const user = await requireUser();
   if (!can(user.role, "viewExpenses")) {
     throw new Error("Unauthorized: Finance access is restricted to Owner.");

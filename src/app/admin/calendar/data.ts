@@ -6,7 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl, getSupabasePublishableKey } from "@/lib/supabase/env";
 
 export async function getCalendarData() {
-  "use server";
+  
   const user = await requireUser();
 
   const supabase = createClient(getSupabaseUrl(), getSupabasePublishableKey());
