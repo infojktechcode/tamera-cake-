@@ -28,24 +28,29 @@ export function CartView({ items, onRemove }: CartViewProps) {
       </header>
 
       <ul className="space-y-4">
-        {items.map((item) => (
-          <li key={item.kind + (item.productId ?? item.flavourId)} className="rounded-2xl border border-cocoa/10 bg-cream p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-cocoa">{item.kind === "cake" ? item.flavourName : item.name}</p>
-                {item.kind === "cake" && <p className="text-xs text-ink-muted">{item.kg}kg · {item.tierName}</p>}
-                {item.kind === "pastry" && <p className="text-xs text-ink-muted">{item.quantity}× {item.unitPrice} KES</p>}
+        {items.map((item) => {
+          const isCake = item.kind === "cake";
+          const genericItem = item as any;
+
+          return (
+            <li key={isCake ? genericItem.flavourId : genericItem.productId} className="rounded-2xl border border-cocoa/10 bg-cream p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-cocoa">{isCake ? genericItem.flavourName : genericItem.name}</p>
+                  {isCake && <p className="text-xs text-ink-muted">{genericItem.kg}kg · {genericItem.tierName}</p>}
+                  {!isCake && <p className="text-xs text-ink-muted">{genericItem.quantity}× {genericItem.unitPrice} KES</p>}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onRemove(isCake ? genericItem.flavourId : genericItem.productId)}
+                  className="rounded-full bg-black/10 px-3 py-1 text-sm text-ink-muted hover:bg-black/20"
+                >
+                  Remove
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => onRemove(item.kind + (item.kind === "cake" ? item.flavourId : item.productId))}
-                className="rounded-full bg-black/10 px-3 py-1 text-sm text-ink-muted hover:bg-black/20"
-              >
-                Remove
-              </button>
-            </div>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
 
       <footer className="mt-6 border-t border-cocoa/10 pt-4">
@@ -60,7 +65,7 @@ export function CartView({ items, onRemove }: CartViewProps) {
 
 function lineTotalOf(item: CartItem): number {
   if (item.kind === "cake") {
-    return Math.round(item.flavourPricePerKg * item.kg + (item as any).tierExtraFee);
+    return Math.round((item as any).flavourPricePerKg * (item as any).kg + (item as any).tierExtraFee);
   }
   return item.unitPrice * item.quantity;
 }
