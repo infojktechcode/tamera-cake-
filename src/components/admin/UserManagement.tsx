@@ -12,6 +12,10 @@ interface UserRowProps {
   user: { id: string; full_name: string; role: string; active: boolean };
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Something went wrong.";
+}
+
 function UserRow({ user }: UserRowProps) {
   const [loading, setLoading] = useState(false);
 
@@ -20,8 +24,8 @@ function UserRow({ user }: UserRowProps) {
     try {
       await updateUserStatus(user.id, status);
       toast.success(`User ${user.full_name} ${status ? "activated" : "deactivated"}`);
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(errorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -36,7 +40,7 @@ function UserRow({ user }: UserRowProps) {
       <Button
         variant={user.active ? "outline" : "default"}
         size="sm"
-        onClick={() => handleTogle(!user.active)}
+        onClick={() => handleToggle(!user.active)}
         disabled={loading}
       >
         {user.active ? "Deactivate" : "Activate"}
@@ -45,7 +49,7 @@ function UserRow({ user }: UserRowProps) {
   );
 }
 
-export function UserManagement() {
+export function UserManagement({ initialUsers }: { initialUsers: UserRowProps["user"][] }) {
   const [showAdd, setShowAdd] = useState(false);
 
   async function handleAddManager(e: React.FormEvent<HTMLFormElement>) {
@@ -56,8 +60,8 @@ export function UserManagement() {
       toast.success("Manager profile created");
       setShowAdd(false);
       window.location.reload();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(errorMessage(err));
     }
   }
 
@@ -91,7 +95,9 @@ export function UserManagement() {
 
       <Card className="bg-white overflow-hidden border-cocoa/10">
         <div className="divide-y divide-cocoa/5">
-          {/* Map users here - passed from server component */}
+          {initialUsers.map((user) => (
+            <UserRow key={user.id} user={user} />
+          ))}
         </div>
       </Card>
     </div>

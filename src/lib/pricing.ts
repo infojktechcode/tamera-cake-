@@ -1,7 +1,5 @@
 // Pure, testable cake and cart price functions (money in integer KES).
 
-import type { CakeCartItem, PastryCartItem } from "../types/cart";
-
 /** Cake price — base + tier extra fee, all integer KES. */
 export function cakePrice(i: { pricePerKg: number; sizeKg: number; tierExtraFee: number }): number {
   return Math.round(i.pricePerKg * i.sizeKg + i.tierExtraFee);
@@ -20,6 +18,11 @@ interface PastryLine {
 /** Cart subtotal across pastry lines (cake handled separately by cart-store). */
 export function cartSubtotal(lines: PastryLine[]): number {
   return lines.reduce((s, l) => s + lineTotal(l), 0);
+}
+
+/** Add order-level fees to a subtotal. */
+export function orderTotal(subtotal: number, fees: number): number {
+  return subtotal + fees;
 }
 
 /** Deposit rule — shared by client UI and server compute so they never disagree. */

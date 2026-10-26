@@ -1,43 +1,61 @@
 /**
- * Pure helpers for cake reference photo paths. The storage path is derived from
- * the *validated* mime type (never the client filename) so the slug is stable and
- * safe. Public URLs are built from a site URL stored at build time.
+ * Storage paths for cake reference photos.
+ *
+ * The path is derived from the *validated mime type*, never from the file name
+ * the browser sent: a customer-supplied name could carry a traversal (`../`),
+ * a double extension (`photo.jpg.exe`) or a mismatched type. The name is kept
+ * only for display.
  */
 
-const BUCKET = "cake-references";
+export const PHOTO_BUCKET = "cake-references";
 
-export type PhotoMime = "image/jpeg" | "image/png" | "image/webp";
-
-export const MIME_TO_EXT: Record<PhotoMime, string> = {
-  "image/jpeg": ".jpg",
-  "image/png": ".png",
-  "image/webp": ".webp",
+const EXTENSION_BY_TYPE: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
 };
 
-export function buildCakeReferencePath(mime: PhotoMime): string {
-  const now = new Date();
-  const yyyy = String(now.getUTCFullYear());
-  const mm = String(now.getUTMonth()).padStart(2, "0");
-  const token = cryptoRandomToken();
-  return `${BUDGET}/${yyyy}/${mm}/${token}${MIME_TO_EXT[mime]}`;
+/**
+ * `cakes/<id>.<ext>` — a flat, opaque path.
+ *
+ * The id is random, so two customers never collide and the path leaks nothing
+ * about the customer. The folder is created per upload rather than per order
+ * because the order does not exist yet when the photo is uploaded.
+ */
+export function buildPhotoPath(contentType: string, id: string): string {
+  const ext = EXTENSION_BY_TYPE[contentType];
+  if (!ext) {
+    throw new Error(`Unsupported photo type: ${contentType}`);
+  }
+  return `cakes/${id}.${ext}`;
 }
 
-export function buildReferenceImageUrl(path: string): string {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
-  if (!siteUrl) return `/storage/${path}`;
-  const base = siteUrl.replace(/\/+$/, "");
-  return `${base}/storage/${path}`;
+/**
+ * The public URL of a stored photo, read from the public project url.
+ *
+ * Returns null when the project url is not configured — a missing preview is
+ * better than a broken page, and the env var is missing in some test and
+ * build environments.
+ */
+export function publicPhotoUrlFromEnv(path: string): string | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url) return null;
+  return publicPhotoUrl(path, url);
 }
 
-/** Size of a Blob or File in bytes — used by compress to validate size after resize. */
-export function sizeOfBlob(blob: Blob): number {
-  return blob.size;
-}
-
-function cryptoRandomToken(): string {
-  // Deterministic length without importing node crypto in browser code.
-  const chars = "abcdefghijklmnopqrstuvwxyz01234456756789";
-  let out = "";
-  for (let i = 0; i < 16; i++) out += chars[Math.floor(Math.random() * chars.length)];
-  return out;
+/**
+ * The public URL of a stored photo.
+ *
+ * `cake-references` is a public bucket (see `supabase/migrations/0006_storage.sql`),
+ * so a stored path is readable by anyone holding the URL — the same visibility
+ * the shop's own staff need to see the customer's reference photo.
+ */
+export function publicPhotoUrl(path: string, supabaseUrl: string): string {
+  const encoded = path
+    .split("/")
+    .filter((segment) => segment.length > 0 && segment !== "." && segment !== "..")
+    .map(encodeURIComponent)
+    .join("/");
+  const base = supabaseUrl.replace(/\/$/, "");
+  return `${base}/storage/v1/object/public/${PHOTO_BUCKET}/${encoded}`;
 }

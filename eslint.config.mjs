@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    ".worktrees/**",
+    // Tracked task-generation artifact, not application source.
+    "phase3-complete.js",
   ]),
 ]);
 

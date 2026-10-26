@@ -44,16 +44,11 @@ export function can(role: Role, cap: Capability): boolean {
 }
 
 export function isAdminPathAllowed(role: Role, path: string): boolean {
-  const superadminOnly = [
-    "/admin/sales", // read ok for manager? sales summary allowed for manager per prompt. See: sales summary allowed for manager.
-  ];
-  void superadminOnly;
   const blockedForManager = [
     "/admin/finance",
     "/admin/users",
     "/admin/settings",
     "/admin/activity",
-    "/admin/share", // actually share may be manager? prompt: superadmin only contrast? Share screen for owner. Keep superadmin only to be safe? 
     "/admin/reports", // reports export — prompt says superadmin only. manager has sales summary but not reports export.
   ];
   if (role === "manager") {

@@ -1,4 +1,83 @@
-# Audit report — Tamera Cakes & Bakery order system
+# Follow-up audit — integrated completion branch
+
+This section supersedes the historical baseline below wherever they differ.
+It reflects the current `work/complete-phase-gaps` worktree and is not a
+production sign-off.
+
+## Verification on 2026-10-26
+
+- Git is still in a merge (`MERGE_HEAD` exists), but `git ls-files -u` is
+  empty. The merge has not been committed or continued. Staged, unstaged and
+  untracked changes remain; review and explicit approval are still required
+  before finalizing.
+- The linked Supabase CLI reports local and remote migrations `0001`–`0009`
+  aligned. Read-only schema checks found the atomic writer, idempotency fields,
+  non-null unique public tokens, and no `orders` table in `supabase_realtime`.
+  The writer is `SECURITY DEFINER`, executable by `service_role` only, and
+  orders RLS is enabled with staff-only policies. No production write or
+  publication change was made.
+- A full `supabase db diff --linked --schema public` could not run because
+  Docker/Podman is unavailable for the CLI shadow database. Migration history
+  and the targeted remote schema/privilege checks passed, but this is not a
+  complete catalog diff.
+- Only the linked project is configured in `.env.local`; no separate staging
+  project or staging credentials were found. Write-path Playwright tests were
+  not run because the configured E2E flow creates real orders.
+- Checkout now keeps a payload-bound idempotency key in tab-scoped session
+  storage, so retries reuse the key but changed cart/details get a new one. The
+  stored fingerprint is a SHA-256 digest rather than customer data; the API
+  requires the key and SQL rejects reuse with a different request hash.
+- The local `.env.example` was ignored and not present in Git history, but it
+  contained populated seed-account values. Those values are now empty
+  placeholders, and `.gitignore` allows this example file to be versioned.
+  Rotate the corresponding Supabase Auth passwords if they were active.
+- Current checks: `pnpm lint`, `pnpm typecheck`, `pnpm test` (35 files, 311
+  tests), and `pnpm build` passed. One build attempt failed during Supabase
+  data fetching; an isolated retry passed. ESLint excludes nested worktrees and the
+  tracked task-generation artifact `phase3-complete.js`; no application source
+  is excluded by that rule.
+- The generic database repair script no longer alters Realtime publication.
+  The dashboard polls every 20 seconds, so Realtime is an optional latency
+  improvement and remains a separate owner-approved staging decision.
+
+## Verified in this worktree
+
+- Phase 3 ordering is integrated: cart, checkout, photo upload, server pricing,
+  order confirmation and WhatsApp handoff are present. Order writes now use
+  migration `0009_atomic_public_orders.sql` for one-transaction persistence,
+  date-capacity serialization and retry idempotency.
+- Public order confirmation URLs now use random UUID tokens instead of
+  sequential order numbers, which previously made customer names, addresses
+  and order details enumerable.
+- Phase 4 order management and Phase 5 operations screens/routes are present.
+- Phase 6 sales, finance, activity, reports and product sharing are present;
+  reports are owner-only, and product sharing includes QR PNG/PDF output.
+- Phase 7 has a manifest and icons, reduced-motion handling, robots and sitemap
+  routes, and product-page canonical metadata.
+- Historical local checks at the time of the integrated audit: TypeScript,
+  ESLint, production build and 308 unit / component tests passed. See the dated
+  verification section above for the latest results.
+
+## Still required before release
+
+1. Provision a separate disposable staging project and verify migrations and
+   full order lifecycle there. The current linked project is not staging; no
+   write tests were run against it.
+2. Run the Playwright journey only against that disposable seeded database.
+3. Perform a manual keyboard/screen-reader accessibility pass and run Lighthouse
+   on a representative mobile device/network. The required WCAG, LCP and
+   Lighthouse targets are not established by unit tests or a production build.
+4. The IP rate limiter is in-memory and per application instance. It is
+   effective only within that instance and resets on restarts; use a shared
+   limiter before relying on it across horizontally scaled deployments.
+5. Reconcile the seed catalogue and prices with the shop's current live data
+   before launch.
+
+## Historical baseline findings (pre-integration)
+
+The following sections record the earlier audit snapshot. Their branch,
+migration-count and test observations describe that earlier repository state,
+not the current worktree.
 
 Audited 2026-10-23 against `README.md`, `docs/DECISIONS.md`, `supabase/migrations/`,
 `src/lib/{pricing,cart-store,order-compute,permissions,supabase/*}.ts`,

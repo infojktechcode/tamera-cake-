@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { Viewport } from "next";
 import { Fraunces, DM_Sans } from "next/font/google";
 import { MotionConfig } from "motion/react";
+import { getSiteUrl } from "@/lib/supabase/env";
 import "./globals.css";
 import { Toaster } from "sonner";
 
@@ -22,6 +23,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL(getSiteUrl()),
   title: {
     default: "Tamera's Cakes & Bakery",
     template: "%s | Tamera's Cakes",

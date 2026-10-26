@@ -22,7 +22,7 @@ choice was made and recorded here.
 ## 2. Roles & access control
 
 - Roles are exactly `superadmin` (owner) and `manager` — matching the
-  `user_age` enum in `0001_enums.sql`. There is no cashier role.
+  `user_role` enum in `0001_enums.sql`. There is no cashier role.
 - Capability matrix lives in `src/lib/permissions.ts`
   (`capabilities`, `can()`, `isAdminPathAllowed()`).
 - Enforcement is layered, not button-hiding:
@@ -48,7 +48,8 @@ choice was made and recorded here.
 ## 4. Auth
 
 - Staff sign in with **email + password** (Supabase Auth), not phone + PIN —
-  the technical plan specifies email/password and Supabase Auth handles reset flows for free.
+  the technical plan specifies email/password and Supabase Auth handles
+  reset flows for free.
 - Inactive profiles are rejected at login (sign-out after check) and again by
   `requireUser()` on every admin render.
 - Customers never authenticate; public site is anon-only.
@@ -60,7 +61,7 @@ choice was made and recorded here.
   `export const instant = false` to opt their segments out of instant-nav
   validation (the overview page calls `requireUser()` itself, so the layout's
   export alone doesn't cover it). Result: `pnpm build` shows all `/admin/*`
-  routes as `ƒ` (dynamic) with zero prender warnings.
+  routes as `ƒ` (dynamic) with zero prerender warnings.
 
 ## 5. Seed data
 
@@ -110,28 +111,260 @@ choice was made and recorded here.
 - `manifest` metadata fixed to `/site.webmanifest`; the PWA work itself is
   Phase 7.
 
-## 8. Phase 3 (ordering completion)
+## 8. Phase 3 (ordering)
 
-### What was built
+- **The order route is the security boundary.** The browser sends ids and
+  quantities only. `POST /api/orders` re-reads the catalogue and recomputes
+  every price, deposit and delivery fee from the database; the Zod schema is a
+  `strictObject`, so a tampered `unitPrice` or `total` is rejected rather than
+  silently corrected. The split is deliberate: `src/lib/order-compute.ts` holds
+  the pure arithmetic (18 tests, no database) and the route handler owns the
+  I/O (15 tests against a stubbed client).
+- **The capacity check does not use the `cake_load_for_date` SQL function.**
+  PostgREST matches RPC arguments by the parameter name declared in SQL, and
+  the live database's function is `cake_load_for_date(d date)`. Calling it with
+  `{ date: … }` fails with PGRST202 — which made **every order fail with a
+  500**. The route now counts the cakes with three indexed queries
+  (`src/lib/cake-load.ts`), which cannot break that way; the SQL function stays
+  in the schema for the production calendar and must be called with
+  `{ d: … }` until the live database is repaired.
+- **Reference photos are uploaded with a signed URL, not through the app
+  server.** `POST /api/upload` validates the mime type and size and hands back a
+  signed upload URL; the browser PUTs the bytes straight to Supabase storage.
+  A 5 MB photo would otherwise hit the serverless request-size limit, and the
+  bucket's own `file_size_limit` and `allowed_mime_types` still apply to the
+  PUT, so the rules are enforced twice. The storage path is built from the
+  *validated mime type* and a random id — a customer-supplied file name never
+  reaches the path.
+- **Photos are uploaded as they are picked, not at checkout.** The cart holds
+  storage paths, so the photos survive a reload and can be attached to the
+  order. The cost is an abandoned builder leaves an orphan file in the bucket;
+  the shop deletes unused files by hand until a cleanup job exists.
+- **The builder's date and fulfilment live in the cart, not in the cake item.**
+  The date and the delivery method belong to the order, so they are order-level
+  cart state (`CartState.details`). The checkout form starts from them instead
+  of asking the customer to repeat the decision.
+- **The cart has its own page.** The builder sends the customer to `/cart`; the
+  page shows the whole order, lets the customer remove a line and links to
+  checkout. It was missing at first, which dead-ended the journey on a 404.
+- **Confirmation URLs use a random UUID, not the order number.** Order numbers
+  are sequential and must never be used as read credentials: the confirmation
+  page includes customer and delivery details. The order number remains visible
+  to the customer on the confirmation page, while the URL token is validated
+  and used only for the narrowly scoped order lookup.
+- **Checkout retries reuse a payload-bound, tab-scoped idempotency key.** It
+  survives a page reload so a network failure after the database commit does
+  not create a second order when the customer retries. Editing the cart or
+  checkout details creates a new key; the database rejects a reused key with
+  a different request hash. The API requires a key for every checkout.
+- **A quoted design carries no deposit.** The server (`order-compute.ts`) takes
+  no deposit for a tier with `requires_quote`, because there is no final price
+  to take a percentage of. The client used to promise a deposit the server
+  never asked for; the builder, the cart and the checkout now follow the server
+  rule.
+- **The rate limiter is per instance.** `src/lib/rate-limit.ts` keeps a
+  fixed-window counter in memory: six orders and twelve uploads per minute per
+  IP. It is not shared between instances and does not survive a restart. This
+  is a known release limitation; replace it with a shared store before relying
+  on rate limits across horizontally scaled deployments.
 
-The customer journey is now end-to-end on a 360px phone: build a cake (size →
-flavour → design tier → upload reference photos → message → pickup date →
-review → add to cart → cart page → checkout), with every price recomputed
-server-side from catalogue ids. Five defects closed:
+## 9. Phase 4 (orders dashboard)
 
-| # | Defect | Fix |
-|---|--------|-----|
-| D1 | `CakeBuilder` pushed to `/cart` but no route existed | Added `src/app/(public)/cart/page.tsx` + `CartView.tsx` |
-| D2 | Reference photos were `File[]`, never uploaded | New signed-URL upload route `POST /api/upload`; `referencePhotos` now stores storage paths |
-| D3 | Date and zone collected at step 6 then discarded | Stored on the cake cart item (`dateNeeded`, `deliveryZone`) and flow through `addCake` |
-| D4 | `CartDrawer.removeItem("cake-<uuid>")` matched nothing | `removeItem` matches by `flavourId` / `productId`; id helper exported |
-| D5 | Client showed deposit for quote-only tier, server never did | `orderCompute.depositParity` shares the same rule as `pricing.depositRequired`; UI branch removed |
-| D6 | `setPhotoError` called inside a `setForm` updater; `createObjectURL` leaked | Both removed |
-| D7 | No security headers | Headers block in `next.config.ts`: CSP, `frame-ancestors 'none'`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` |
+- **The status machine is pure and shared.** `src/lib/order-status.ts` holds
+  the allowed moves and is enforced twice: the dashboard only offers the moves
+  that are allowed, and `PATCH /api/admin/orders/[id]` refuses the rest. A
+  manager may cancel an order that is not confirmed yet; once the shop has
+  confirmed it, only the owner can cancel it. A pickup order skips the
+  `out_for_delivery` leg.
+- **The dashboard reads with the staff member's own session.** The admin
+  screens use the cookie-aware Supabase client, so Row Level Security decides
+  what a manager can see. The server-only service-role client is used for
+  protected public-order writes, public-token confirmation reads, signed
+  upload URLs and activity logging; it must never enter a browser bundle.
+- **Realtime is optional; polling is the working fallback.** The dashboard
+  subscribes to order inserts and polls every 20 seconds. The linked database
+  does not include `orders` in `supabase_realtime`, and order alerts still work
+  through polling. The generic repair script deliberately does not change the
+  publication. To enable lower-latency events, an owner must approve the
+  separate `alter publication supabase_realtime add table public.orders;`
+  change and it must first be tested in staging. Staff-only RLS must remain in
+  place for Realtime authorization.
+- **New orders are announced three ways**: the row slides in with a highlight,
+  the sidebar badge counts up, and a short sound plays. The sound only plays
+  after the shop presses "Enable alerts", because browsers block audio before a
+  user gesture. The chime is built with the Web Audio API, so there is no
+  sound file to download.
+- **Staff sessions work with a cookie *or* a bearer token.** The dashboard uses
+  the cookie; scripts and API clients send `Authorization: Bearer …`, and
+  `getStaffSession()` returns both the identity and a client scoped to it, so
+  RLS applies either way.
 
-### Key invariants held across the changes
+## 10. Phase 5 (products, customers, walk-in, calendar)
 
-- `referencePhotos: string[]` in `types/cart.ts` — plain strings, persisted, no strip.
-- `addCake` accepts `dateNeeded` and `deliveryZone` optional fields.
-- Deposit shown only when `deposit > 0` — matches `computeOrder` parity exactly.
-- E2E spec `e2e/order-journey.spec.ts` drives a full mixed order at 360px.
+### 10.1 Products management
+
+- **Four tables under one screen.** Products (pastries + showcase cakes), cake
+  flavours, cake sizes and design tiers are edited in place. The tabs are
+  Products / Flavours / Sizes / Tiers; the state lives in the client so a save
+  updates the row without a full round trip, but the server remains the source of
+  truth on the next visit.
+- **Role-separated columns at the database level.** `product_costs` is only
+  readable by the owner through RLS (`superadmin_costs_all`), so a manager
+  *never receives a cost price* — there is nothing to hide in the browser. The
+  same policy restricts price changes and product deletion to the owner
+  (`staff_update_products` / `superadmin_delete_products`). The API re-checks
+  every capability with `permissions.ts` for anyone calling it directly.
+- **Photos upload via signed URLs, like the customer reference photos.** The
+  staff-only route `POST /api/admin/product-image` signs a path in the
+  `product-images` bucket; the browser PUTs the compressed bytes straight to
+  storage. The returned path is what `PATCH /api/admin/products/[id]` stores in
+  `image_url`. A helper (`isValidProductImagePath`) only accepts paths that the
+  app itself can create (`/showcase/*.jpg` from the seed and
+  `products/<random>.<ext>` from uploads) so a malicious input can never point
+  the column at an arbitrary file or another bucket.
+- **On-demand revalidation is instant.** Every mutation calls
+  `revalidateTag("catalog", { expire: 0 })` so the public pastries page, the
+  cake builder and the checkout all see the change on the next load. The
+  `profile="max"` used for background mutations is too slow for a dashboard
+  where the person making the edit wants to see it immediately.
+- **A product on a past order cannot be deleted** (the foreign key from
+  `order_items` blocks it); the API returns `409` with a clear message and the
+  UI offers "switch it off" instead. This keeps the order history intact.
+
+### 10.2 Customers
+
+- **A customer is a phone number.** The order route upserts on it, so the same
+  person always lands on one record whether they ordered online or walked in.
+- **Statistics are pure.** `customer-stats.ts` has 10 tests; the client table
+  and the server page share them, so the cancelled-order exclusion and the
+  repeat badge are identical everywhere.
+- **Call and WhatsApp links from the table.** `tel:` opens the dialer; the
+  WhatsApp link pre-fills a friendly greeting that mentions the customer's first
+  name.
+- **Phone numbers display as `0720 009 999`** (`formatKenyanPhone`), so the
+  shop reads them the way they speak them. The `href` still uses the `254…`
+  format that WhatsApp expects.
+
+### 10.3 Walk-in sales
+
+- **A walk-in is a shop customer buying pastries over the counter** (spec §6.2).
+  The form shows available pastries with a `+`/`-` stepper, a tiny stock hint,
+  and a running total. The customer is a name + phone + a consent checkbox.
+- **The server recomputes every price.** The browser sends ids and quantities;
+  `POST /api/admin/walk-in` loads the catalogue again and computes the total
+  itself, exactly like the online order route.
+- **Going through `confirmed` keeps the stock rule in one place.** The sale is
+  inserted as `new`, the payment is recorded, then the order moves to
+  `confirmed` — the database trigger takes the pastries off the shelf — and
+  finally to `completed`. Duplicating the stock logic in the route would be a
+  second source of bugs.
+- **A returning phone keeps its history and never loses a previous consent.**
+  The upsert merges `consent = existing.consent || new.consent`, so an opt-in
+  is permanent.
+- **Activity is logged** (`walk_in_sale` with the order number and total) so the
+  owner sees every counter sale in the activity feed.
+
+### 10.4 Production calendar
+
+- **A day is blocked or open.** `POST/DELETE /api/admin/blocked-dates` are
+  owner-only and logged. The calendar page shows a month grid (compact on
+  mobile), a week strip and a day panel; the day panel is where a blocked day
+  is toggled.
+- **The confirm step checks the calendar again.** A date can be blocked or
+  filled up between the customer placing the order and the shop saying yes.
+  `checkOrderDateRules` is called in `PATCH /api/admin/orders/[id]` when the
+  status moves to `confirmed`, so a blocked day returns `400` at confirm time
+  even if the order was placed when the day was open.
+
+
+## 11. Phase 6 (insight)
+
+### 11.1 Sales summary
+
+- **Sales and money in are two different numbers, and the screen shows both.**
+  *Sales* is what the shop has booked — order totals with cancelled orders
+  left out, bucketed by the Nairobi day the order was placed. *Paid* is what
+  actually arrived — payments recorded in that window, refunds included as
+  negatives. Only the booked figure drives the projection, because the
+  projection is about demand, not about when a balance was chased.
+- **Everything is bucketed on Africa/Nairobi time, not UTC.** An order placed
+  at 22:30 UTC belongs to tomorrow's "today" in the shop. The pure module
+  (`sales-summary.ts`) does the date maths through the same `todayInKenya`
+  helper the rest of the app uses, and the tests pin the boundary.
+- **The projection is exactly as specified:** sales so far ÷ days elapsed ×
+  days in month, rounded to whole shillings, with a plain sentence ("Sales are
+  running at about KES 1,286 a day; at this pace October 2026 will finish at
+  KES 39,859"). With no sales yet it says the projection appears with the
+  first order rather than showing a confident KES 0.
+- **Best sellers rank by items sold; slow movers list the catalogue lines
+  that sold least, zeros included.** A line whose order lost its product id
+  keys on its name instead, so the same product cannot appear twice in the
+  ranking, and an unlinked line still credits the catalogue product of the
+  same name. Only currently-available products and flavours are offered as
+  slow movers — a switched-off line is not something to promote.
+- **The screen is role-safe by construction, not by hiding.** `/admin/sales`
+  is open to both roles (spec §3: sales figures and the projection are a
+  manager view), and the loader only reads orders, order items, payments,
+  products and flavours — tables RLS already lets either role read. There is
+  no cost price, margin, expense or profit anywhere in the payload, so a
+  manager never receives a number they must not see. Costs and expenses stay
+  on the owner-only finance screen.
+- **The 7-day strip is CSS, not a chart library.** Seven bars from a `div`
+  with pixel heights keep the page server-rendered and the bundle unchanged.
+
+### 11.2 Finance (profit & loss + expenses log)
+
+- **Cost of goods is only partly knowable.** `product_costs` carries a cost
+  price for every product (pastries and showcase cakes), but a cake ordered
+  through the builder is a flavour + size + tier and flavours have no cost
+  column — the database simply does not record what a cake costs to make.
+  Rather than invent a number, the module reports the *coverage*: the share
+  of line revenue whose cost price is known. Profit is labelled and shown
+  alongside that coverage, so an upper figure can never be read as an exact
+  one.
+- **Periods are Africa/Nairobi days, like sales.** Today = Nairobi date of
+  `created_at`; this week = Monday to today; this month = 1st to today. The
+  seven-day table uses the same `todayInKenya` helper. Cancelled orders are
+  excluded everywhere.
+- **Expenses bucket by `spent_on` (a plain date).** The expenses table stores
+  the day the money was spent, not a timestamp with timezone, so no conversion
+  is needed — the date string compares directly.
+- **The expenses log is owner-only end-to-end.** The page and the proxy block
+  managers; the API checks `can(role, "viewExpenses")`; the table has
+  superadmin-only RLS (`superadmin_expenses_all`). A manager who bypasses
+  the path guard would still receive empty arrays from the database.
+- **Add + delete only; no edit.** Editing an expense is a rarer action and
+  would require a PATCH route, a form state, and a way to cancel the edit.
+  Deleting and re-adding is fast enough for the intended use (catching a typo
+  in the amount or category).
+- **Category is free text with a datalist.** The seed has no expense
+  categories; the UI suggests common ones (Ingredients, Packaging, Transport,
+  Utilities, Rent, Staff, Marketing, Equipment, Other) but lets the owner type
+  anything up to 60 characters.
+- **The daily table shows profit per day.** Revenue − known cost − expenses.
+  Days with no sales or expenses still render a row, so the strip is always
+  seven days and the owner can see at a glance where the month is.
+
+### 11.3 Activity log
+
+- **Single source of truth, already populated.** Every mutating route in the
+  app (orders, walk-in, blocked dates, expenses, products, catalogue options,
+  payments, price edits) writes a row to `activity_log` via the service client.
+  The screen is a pure read of that table.
+- **Owner-only, triple-locked.** The nav hides it (`viewActivityLog`), the
+  proxy redirects managers, the page checks `can(role, "viewActivityLog")`,
+  and the table has superadmin-only RLS (`superadmin_read_activity`). A
+  manager who bypasses the first two still receives nothing.
+- **Cursor pagination, not offset.** The loader returns 50 rows plus a
+  `nextCursor` (the `created_at` of the last row). The "Load more" button
+  submits a form with the cursor; the server re-queries with `.lt("created_at",
+  cursor)`. No client-side fetch, works without JS for the first page.
+- **Record links back to the source.** Orders, products, expenses, blocked
+  dates and staff all link to their admin page so the owner can jump from the
+  log to the affected record.
+- **JSON diff shown inline.** `old_value` and `new_value` are collapsible
+  `<details>` blocks — no separate modal, no extra round trip.
+- **Action labels are human.** The raw `order_status_changed` becomes
+  "Order status changed"; unknown actions fall back to underscore→space.
+  Tables are similarly mapped (`orders` → "Orders", `cake_flavours` → "Cake
+  flavours", etc.).

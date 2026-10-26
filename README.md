@@ -1,66 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tamera's Cakes & Bakery — order system
 
-## Getting Started
+A mobile-first WhatsApp order system for **Tamera's Cakes & Bakery**, Kitengela,
+Kenya. Customers browse on their phone, build a cake, add pastries to the same
+order and send it on WhatsApp. The shop confirms, tracks and delivers it from a
+dashboard that works on a phone too.
 
-First, run the development server:
+- **Public site** — home, cake gallery, pastries, cake builder, cart, checkout,
+  order confirmation with a pre-filled WhatsApp message.
+- **Admin dashboard** — orders board with live alerts, order detail with cake
+  details and reference photos, payments, the status machine, staff accounts.
+- **Supabase** — Postgres with Row Level Security on every table, Auth for staff,
+  Storage for photos.
+
+> **The WhatsApp button only opens a chat.** It fills the message in for you; the
+> customer still presses send. Nothing is sent automatically and the WhatsApp
+> Business API is not used (broadcasts are done by hand in WhatsApp Business).
+
+---
+
+## Requirements
+
+- Node.js 20+ and [pnpm](https://pnpm.io) (`corepack enable pnpm` if needed)
+- A Supabase project
+- The project owner's Supabase credentials (project url, publishable key, secret key)
+
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+cp .env.example .env.local     # then fill it in — see below
+pnpm dev                       # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
-## Environment Variables
+### Environment variables
 
 | Variable | Where it comes from | Notes |
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API | Public. Safe in the browser. |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase → Project Settings → API Keys | Public (`sb_publishable…`). The legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY` also works. |
-| `SUPABASE_SECRET_KEY` | Supabase → Project Settings → API Keys | **Server only.** Bypasses RLS — never prefix it with `NEXT_PUBLIC_` and never commit it. The legacy `SUPABASE_SERVICE_ROLE_KEY` also works. |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase → Project Settings → API Keys | Public (`sb_publishable_…`). The legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY` also works. |
+| `SUPABASE_SECRET_KEY` | Supabase → Project Settings → API Keys | **Required server-side runtime secret** for checkout, confirmation lookups, signed photo uploads, activity logging, and provisioning. Bypasses RLS — never prefix it with `NEXT_PUBLIC_` and never commit it. The legacy `SUPABASE_SERVICE_ROLE_KEY` also works. |
 | `NEXT_PUBLIC_SITE_URL` | your deployment URL | Used for Open Graph images and the canonical links. |
 | `NEXT_PUBLIC_SHOP_WHATSAPP` | the shop's WhatsApp number | The `wa.me` target, e.g. `254714965716`. |
 | `SEED_SUPERADMIN_EMAIL` / `SEED_SUPERADMIN_PASSWORD` | yours | The owner account, created by `scripts/seed-users.mjs`. |
 | `SEED_MANAGER_EMAIL` / `SEED_MANAGER_PASSWORD` | yours | The manager account. |
 
 `.env.local` is git-ignored. Never put a real value in `.env.example`.
-
-## Seeding
-
-```bash
-node scripts/seed-users.mjs        # creates the owner and manager accounts
-node scripts/check-supabase.mjs     # connection, migrations and RLS check
-node scripts/audit-supabase.mjs     # everything the app uses, checked against the live project
-```
-
-The demo catalogue (flavours, sizes, design tiers, pastries, delivery zones and
-the shop settings) is in `supabase/seed.sql`. The prices there are placeholders
-for the demo — replace them with Tamera's real prices in the Products screen
-before launch.
 
 ## The database
 
@@ -76,6 +60,14 @@ The schema lives in `supabase/migrations/` and runs in order:
 | `0006_storage.sql` | the `cake-references` and `product-images` buckets |
 | `0007_stock_trigger_fix.sql` | fixes a double stock restore on cancellation |
 | `0008_indexes.sql` | indexes for the dashboard and the capacity check |
+| `0009_atomic_public_orders.sql` | creates each public order in one transaction, serializes cake-capacity checks, makes checkout retries idempotent, and adds random confirmation tokens |
+| `0010_checkout_idempotency_replay.sql` | replays current-format and verifiable legacy checkout retries before mutable catalogue and availability checks |
+
+The public order endpoint uses `create_public_order()` for the customer, order,
+items, cake details, and activity record. Confirmation links use random tokens,
+not sequential order numbers. Apply migrations through `0010` before deploying
+the checkout flow. The routines are executable only by `service_role`; the
+browser never receives service credentials.
 
 Apply them with the Supabase CLI (`supabase db push`) or by pasting them into
 the dashboard's SQL editor.
@@ -88,9 +80,33 @@ The shop's database was created by hand and is missing a few things. Paste
 
 1. fixes the stock trigger (cancelling a confirmed order restored the stock twice),
 2. adds the missing indexes,
-3. adds `orders` to the Realtime publication so a new order reaches the dashboard
-   instantly instead of waiting for the 20-second poll,
-4. pins `search_path` on the two security-definer helper functions.
+3. pins `search_path` on the two security-definer helper functions.
+
+The orders dashboard works without Realtime and polls every 20 seconds. The
+repair script does not change the Supabase Realtime publication. Enable it only
+if lower notification latency is needed and the project owner approves the
+additional publication. The exact optional SQL is:
+
+```sql
+alter publication supabase_realtime add table public.orders;
+```
+
+This publishes order-row change events to authorized Realtime subscribers.
+Keep the `orders` RLS policies restricted to staff and validate delivery using
+a staging project before enabling it on the live project.
+
+## Seeding
+
+```bash
+node scripts/seed-users.mjs        # creates the owner and manager accounts
+node scripts/check-supabase.mjs     # connection, migrations and RLS check
+node scripts/audit-supabase.mjs     # everything the app uses, checked against the live project
+```
+
+The demo catalogue (flavours, sizes, design tiers, pastries, delivery zones and
+the shop settings) is in `supabase/seed.sql`. The prices there are placeholders
+for the demo — replace them with Tamera's real prices in the Products screen
+before launch.
 
 ## Admin screens (Phase 5)
 
@@ -100,6 +116,16 @@ The shop's database was created by hand and is missing a few things. Paste
 | Customers | `/admin/customers` | Searchable list with orders count, lifetime spend, last order, repeat badge. Call / WhatsApp links. Detail page shows history. |
 | Walk-in | `/admin/walk-in` | Fast counter sale: pick pastries, name + phone + consent, take cash/M-Pesa/bank. Saved as completed + paid; stock moves via the trigger. |
 | Production calendar | `/admin/calendar` | Month / week / day views. Owner blocks/unblocks days; confirm step re-checks the calendar. |
+
+## Admin screens (Phase 6)
+
+| Screen | Path | What it does |
+|---|---|---|
+| Sales | `/admin/sales` | Sales today / this week / this month, money paid in, average order value, a 7-day chart, best sellers, slow movers and the earnings projection with its plain-language sentence. No costs or profit — those belong to Finance. |
+| Finance | `/admin/finance` | **Owner only.** Profit & loss for today, this week and this month on Nairobi days, with the cost coverage caveat (cake flavours have no cost price). Expenses log with add/delete and category datalist. |
+| Activity | `/admin/activity` | **Owner only.** Paginated log of every price, stock, status and payment change. Shows user, action, table, record link and JSON diff. Load-more cursor pagination. |
+| Share | `/admin/share` | Staff can select an available product, copy or share its public page, and download a QR code as PNG or print-ready PDF. |
+| Reports | `/admin/reports` | **Owner only.** Export sales, orders, customers or expenses as CSV or PDF for a selected date range. |
 
 ## Commands
 
@@ -157,33 +183,38 @@ src/
   app/
     (public)/        home, cakes, pastries, order/cake, cart, checkout, order/[number]
     admin/           the staff dashboard
+      calendar/      production calendar, blocked dates
+      customers/     list + customer detail
+      walk-in/       counter-sale form
+      products/      catalogue tabs (pastries, flavours, sizes, tiers)
+      sales/         sales summary and earnings projection
     api/             route handlers (orders, upload, admin)
   components/
     public/          CakeBuilder, CartDrawer, CartView, CheckoutForm, Confetti
-    admin/           OrdersBoard, OrderDetailPanel, StatusPill
-    ui/              button, input, label, card, badge, skeleton
+    admin/           OrdersBoard, OrderDetailPanel, StatusPill, ProductsTabs, CustomersTable, WalkInForm, ProductionCalendar
+    motion/          reusable animation wrappers
   lib/
     pricing.ts       pure cake and cart price functions
     rules.ts         lead time, capacity and blocked-date checks
-    order-compute.ts  order-level cart details compute
+    order-status.ts  the order status machine
+    product-edit.ts  pure catalogue-edit guards (margin, image path, dirty check)
+    sales-summary.ts pure sales arithmetic (periods, projection, rankings)
+    catalogue-admin.ts server loader for the four catalogue tables
+    admin-sales.ts    server loader for the sales summary
+    admin-finance.ts  server loader for the finance screen
+    admin-activity.ts server loader for the activity log
+    finance.ts       pure P&L arithmetic (periods, COGS, expenses, coverage)
+    walk-in.ts       walk-in sale arithmetic
+    customer-stats.ts pure customer summary math
+    admin-calendar.ts calendar data helpers
+    admin-date-check.ts confirm-time date rules
+    format.ts        KES / Kenyan phone / Nairobi clock formatting
+    product-image.ts image-path resolver
     whatsapp.ts      wa.me link builders
-    photo-paths.ts   storage path + public URL helpers
-    photo-compress.ts client-side photo resize
-    cart-store.ts    zustand cart store
-    builder-data.ts   catalogue fetchers
     supabase/        browser, server, service and public clients
 supabase/
-  migrations/       the schema
+  migrations/        the schema
   seed.sql           the demo catalogue
   database-repairs.sql   one-time fixes for the live project
 docs/DECISIONS.md    why things are the way they are
 ```
-
-## Phase 3 (ordering completion)
-
-End-to-end customer journey now works on a 360px phone: build a cake, add
-pastries to the same order, upload reference photos via signed URLs, place a
-mixed order, and land on the confirmation page. Five defects closed: no dead end
-(`/cart` route exists), photos actually uploaded, date/zone preserved into the
-cart, cart remove id contract fixed, deposit parity shared with the server,
-impure updater + leaked object URLs removed, and security headers added.

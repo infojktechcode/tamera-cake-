@@ -1,70 +1,38 @@
-import { getSalesKPIs, getSalesGrowth } from "./data";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { cookies } from "next/headers";
 
-export default async function SalesPage() {
-  const kpis = await getSalesKPIs();
-  const growth = await getSalesGrowth();
+import { SalesSummaryView } from "@/components/admin/sales-summary";
+import { getSalesSummary } from "@/lib/admin-sales";
+import { requireUser } from "@/lib/session";
+import { createClient } from "@/lib/supabase/server";
+
+/**
+ * The sales screen (spec §6.2): sales today, this week and this month, the
+ * average order value, the best sellers and slow movers, and the earnings
+ * projection with a plain-language sentence.
+ *
+ * Sales figures and the projection are a manager-level view (spec §3) — the
+ * path is open to both roles and the query only touches orders, items,
+ * payments and the catalogue, which RLS already allows either role to read.
+ * Cost prices and profit live on the owner-only finance screen.
+ */
+export const instant = false;
+
+export default async function AdminSalesPage() {
+  await requireUser();
+  const supabase = await createClient(await cookies());
+  const summary = await getSalesSummary(supabase);
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="font-display text-3xl font-bold">Sales Overview</h1>
-        <p className="text-ink-muted">Track your revenue and order volume.</p>
-      </div>
+    <div className="space-y-6">
+      <header>
+        <h1 className="font-display text-2xl font-semibold">Sales</h1>
+        <p className="mt-1 text-sm text-ink-muted">
+          Booked sales, money paid in, what sells and what does not — plus where the month is
+          heading.
+        </p>
+      </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-6 bg-white shadow-sm border-cocoa/10">
-          <p className="text-xs font-bold uppercase text-ink-muted mb-1">Total Revenue</p>
-          <p className="text-2xl font-display font-bold text-cocoa">
-            KES {kpis.totalRevenue.toLocaleString()}
-          </p>
-        </Card>
-
-        <Card className="p-6 bg-white shadow-sm border-cocoa/10">
-          <p className="text-xs font-bold uppercase text-ink-muted mb-1">Total Collected</p>
-          <p className="text-2xl font-display font-bold text-green-600">
-            KES {kpis.totalPaid.toLocaleString()}
-          </p>
-        </Card>
-
-        <Card className="p-6 bg-white shadow-sm border-cocoa/10">
-          <p className="text-xs font-bold uppercase text-ink-muted mb-1">Pending Balance</p>
-          <p className="text-2xl font-display font-bold text-red-500">
-            KES {kpis.totalBalance.toLocaleString()}
-          </p>
-        </Card>
-
-        <Card className="p-6 bg-white shadow-sm border-cocoa/10">
-          <p className="text-xs font-bold uppercase text-ink-muted mb-1">Total Orders</p>
-          <p className="text-2xl font-display font-bold text-cocoa">
-            {kpis.orderCount}
-          </p>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 p-6 bg-white shadow-sm border-cocoa/10">
-          <h3 className="font-display font-bold mb-4">Monthly Revenue</h3>
-          <div className="space-y-3">
-            {Object.entries(growth).map(([month, amount]) => (
-              <div key={month} className="flex items-center justify-between py-2 border-b border-cocoa/5">
-                <span className="text-sm font-medium">{month}</span>
-                <span className="text-sm font-bold">KES {amount.toLocaleString()}</span>
-              </div>
-            ))}
-            {Object.keys(growth).length === 0 && <p className="text-sm text-ink-muted">No sales data available yet.</p>}
-          </div>
-        </Card>
-
-        <Card className="p-6 bg-white shadow-sm border-cocoa/10">
-          <h3 className="font-display font-bold mb-4">Quick Actions</h3>
-          <div className="flex flex-col gap-2">
-            <Button variant="outline" className="justify-start">Export Sales CSV</Button>
-            <Button variant="outline" className="justify-start">Print Summary</Button>
-          </div>
-        </Card>
-      </div>
+      <SalesSummaryView summary={summary} />
     </div>
   );
 }

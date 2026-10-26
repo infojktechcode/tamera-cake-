@@ -1,51 +1,122 @@
+"use client";
+
 import Link from "next/link";
-import type { CartItem } from "../../types/cart";
 
-interface CartViewProps {
-  items: CartItem[];
-  onRemove: (id: string) => void;
-}
+import { useCart } from "@/lib/cart-store";
+import { formatKES } from "@/lib/format";
 
-export function CartView({ items, onRemove }: CartViewProps) {
+/**
+ * The cart page.
+ *
+ * Cakes and pastries live in the same cart and the same order. This page is
+ * the full-page view of it: the drawer is the quick glance, this is where the
+ * customer checks the list before checkout.
+ */
+export function CartView() {
+  const items = useCart((s) => s.items);
+  const total = useCart((s) => s.cartTotal);
+  const count = useCart((s) => s.itemCount);
+  const removeItem = useCart((s) => s.removeItem);
+  const updatePastryQty = useCart((s) => s.updatePastryQty);
+
   if (items.length === 0) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-6 text-center">
-        <p className="text-ink-muted">Your cart is empty.</p>
-        <Link href="/pastries" className="rounded-full bg-strawberry px-6 py-3 font-medium text-white transition hover:bg-strawberry-deep">
-          Browse pastries
-        </Link>
+      <div className="rounded-2xl border border-cocoa/10 bg-vanilla/60 p-10 text-center">
+        <p aria-hidden className="text-4xl">
+          🧁
+        </p>
+        <h2 className="mt-3 font-display text-xl font-semibold text-cocoa">
+          Your cart is empty
+        </h2>
+        <p className="mt-1 text-ink-muted">
+          Add a cake or a few pastries and we&apos;ll get baking.
+        </p>
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+          <Link
+            href="/order/cake"
+            className="inline-flex min-h-12 items-center justify-center rounded-full bg-strawberry px-6 py-3 font-semibold text-white transition hover:bg-strawberry-deep"
+          >
+            Order a cake
+          </Link>
+          <Link
+            href="/pastries"
+            className="inline-flex min-h-12 items-center justify-center rounded-full border border-cocoa/20 px-6 py-3 font-semibold text-cocoa transition hover:border-cocoa/40"
+          >
+            Browse pastries
+          </Link>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-8">
-      <header className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-cocoa">Your order</h1>
-        <Link href="/checkout" className="rounded-full bg-primary px-5 py-2 font-medium text-white transition hover:bg-primary/90">
-          Checkout →
-        </Link>
-      </header>
-
-      <ul className="space-y-4">
+    <div className="grid gap-8 lg:grid-cols-[1fr_20rem]">
+      <ul className="divide-y divide-cocoa/10 rounded-2xl border border-cocoa/10 bg-vanilla/40">
         {items.map((item) => {
-          const isCake = item.kind === "cake";
-          const genericItem = item as any;
+          const key = item.kind === "cake" ? `cake-${item.flavourId}` : item.productId;
+          const removeId = item.kind === "cake" ? item.flavourId : item.productId;
+          const lineTotal =
+            item.kind === "cake"
+              ? Math.round(item.flavourPricePerKg * item.kg + item.tierExtraFee)
+              : item.unitPrice * item.quantity;
 
           return (
-            <li key={isCake ? genericItem.flavourId : genericItem.productId} className="rounded-2xl border border-cocoa/10 bg-cream p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-cocoa">{isCake ? genericItem.flavourName : genericItem.name}</p>
-                  {isCake && <p className="text-xs text-ink-muted">{genericItem.kg}kg · {genericItem.tierName}</p>}
-                  {!isCake && <p className="text-xs text-ink-muted">{genericItem.quantity}× {genericItem.unitPrice} KES</p>}
-                </div>
+            <li key={key} className="flex items-start justify-between gap-4 p-4">
+              <div className="min-w-0">
+                <p className="font-medium text-cocoa">
+                  {item.kind === "cake"
+                    ? `${item.flavourName} cake — ${item.kg}kg, ${item.tierName}`
+                    : item.name}
+                </p>
+                <p className="mt-0.5 text-xs text-ink-muted">
+                  {item.kind === "cake"
+                    ? "Custom cake"
+                    : `${item.quantity} × ${formatKES(item.unitPrice)}`}
+                </p>
+                {item.kind === "cake" && item.designDescription ? (
+                  <p className="mt-1 line-clamp-2 text-xs text-ink-muted">
+                    {item.designDescription}
+                  </p>
+                ) : null}
+                {item.kind === "cake" && item.referencePhotos.length > 0 ? (
+                  <p className="mt-1 text-xs text-ink-muted">
+                    {item.referencePhotos.length} reference photo
+                    {item.referencePhotos.length > 1 ? "s" : ""}
+                  </p>
+                ) : null}
+                {item.kind === "pastry" ? (
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => updatePastryQty(item.productId, item.quantity - 1)}
+                      aria-label={`Decrease ${item.name}`}
+                      className="flex h-11 w-11 items-center justify-center rounded-full border border-cocoa/20 text-lg text-cocoa transition hover:border-cocoa/40"
+                    >
+                      −
+                    </button>
+                    <span className="min-w-8 text-center text-sm font-semibold text-cocoa">
+                      {item.quantity}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => updatePastryQty(item.productId, item.quantity + 1)}
+                      aria-label={`Increase ${item.name}`}
+                      className="flex h-11 w-11 items-center justify-center rounded-full bg-strawberry text-lg font-semibold text-white transition hover:bg-strawberry-deep"
+                    >
+                      +
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="font-semibold text-cocoa">{formatKES(lineTotal)}</span>
                 <button
                   type="button"
-                  onClick={() => onRemove(isCake ? genericItem.flavourId : genericItem.productId)}
-                  className="rounded-full bg-black/10 px-3 py-1 text-sm text-ink-muted hover:bg-black/20"
+                  onClick={() => removeItem(removeId)}
+                  aria-label={`Remove ${item.kind === "cake" ? item.flavourName : item.name}`}
+                  className="flex h-11 w-11 items-center justify-center rounded-full text-cocoa transition hover:bg-blush"
                 >
-                  Remove
+                  ×
                 </button>
               </div>
             </li>
@@ -53,19 +124,33 @@ export function CartView({ items, onRemove }: CartViewProps) {
         })}
       </ul>
 
-      <footer className="mt-6 border-t border-cocoa/10 pt-4">
-        <p className="text-ink-muted">Total: <span className="font-semibold text-primary">{Math.round(items.reduce((s, i) => s + lineTotalOf(i), 0))}</span></p>
-        <Link href="/checkout" className="mt-2 inline-block rounded-full bg-primary px-5 py-2 font-medium text-white transition hover:bg-primary/90">
-          Place order →
+      <aside className="h-fit rounded-2xl border border-cocoa/10 bg-vanilla/80 p-5 lg:sticky lg:top-24">
+        <h2 className="font-display text-lg font-semibold text-cocoa">Your order</h2>
+        <p className="mt-1 text-sm text-ink-muted">
+          {count} item{count === 1 ? "" : "s"}
+        </p>
+        <div className="mt-4 flex items-baseline justify-between border-t border-cocoa/10 pt-3">
+          <span className="text-sm font-medium text-cocoa">Estimated total</span>
+          <span className="font-display text-xl font-bold text-cocoa">
+            {formatKES(total)}
+          </span>
+        </div>
+        <p className="mt-1 text-xs text-ink-muted">
+          We confirm the final price on WhatsApp before you pay.
+        </p>
+        <Link
+          href="/checkout"
+          className="mt-4 flex min-h-12 w-full items-center justify-center rounded-full bg-strawberry px-6 py-3 font-semibold text-white transition hover:bg-strawberry-deep"
+        >
+          Checkout
         </Link>
-      </footer>
+        <Link
+          href="/order/cake"
+          className="mt-3 flex min-h-12 w-full items-center justify-center rounded-full border border-cocoa/20 px-6 py-3 font-semibold text-cocoa transition hover:border-cocoa/40"
+        >
+          Add another cake
+        </Link>
+      </aside>
     </div>
   );
-}
-
-function lineTotalOf(item: CartItem): number {
-  if (item.kind === "cake") {
-    return Math.round((item as any).flavourPricePerKg * (item as any).kg + (item as any).tierExtraFee);
-  }
-  return item.unitPrice * item.quantity;
 }

@@ -4,8 +4,8 @@ import { getServiceRoleKey, getSupabaseUrl } from "./env";
 /**
  * SERVER-ONLY Supabase client with the service-role key.
  *
- * Bypasses Row Level Security — use only in admin scripts (e.g. provisioning
- * staff accounts) and server-side jobs that must write to protected tables.
+ * Bypasses Row Level Security — use only in trusted server code that needs
+ * protected order operations, uploads, activity logging, or staff provisioning.
  * Never import from a client component or expose to the browser.
  */
 export function getSupabaseService() {

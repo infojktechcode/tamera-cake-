@@ -9,6 +9,7 @@ function og(m: Metadata) {
 }
 
 const base = {
+  slug: "banana-loaf",
   name: "Banana loaf",
   description: "Moist banana loaf",
   price: 450,
@@ -37,5 +38,10 @@ describe("buildShareMetadata", () => {
     const m = buildShareMetadata(base, "http://x");
     expect(m.title).toBe("Banana loaf");
     expect(og(m)?.type).toBe("website");
+  });
+  it("sets a canonical URL for the share page", () => {
+    const m = buildShareMetadata(base, "https://tamera.example");
+    expect(m.alternates?.canonical).toBeInstanceOf(URL);
+    expect(String(m.alternates?.canonical)).toBe("https://tamera.example/p/banana-loaf");
   });
 });

@@ -1,53 +1,69 @@
-
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Suspense } from "react";
-import { FadeUp } from "@/components/motion";
-import { getFlavourCards } from "@/lib/catalog";
 
-export const metadata: Metadata = { title: "Cake builder" };
+import { CakeBuilder } from "@/components/public/CakeBuilder";
+import { getFlavourCards } from "@/lib/catalog";
+import {
+  getBlockedDates,
+  getDeliveryZones,
+  getDesignTiers,
+  getOrderSettings,
+  getSizes,
+} from "@/lib/builder-data";
+
+export const metadata: Metadata = {
+  title: "Cake builder",
+  description:
+    "Build your own celebration cake — choose the size, flavour, design and message, then add it to your order.",
+  alternates: { canonical: "/order/cake" },
+};
 
 type Props = { searchParams: Promise<{ flavour?: string }> };
 
 export default function OrderCakePage({ searchParams }: Props) {
   return (
-    <section className="mx-auto w-full max-w-3xl px-4 py-12 sm:py-16">
-      <Suspense
-        fallback={
-          <>
-            <h1 className="font-display text-3xl font-bold text-cocoa">Cake builder</h1>
-            <p className="mt-3 text-ink-muted">Cake builder arrives in Phase 3.</p>
-          </>
-        }
-      >
-        <FlavourNotice searchParams={searchParams} />
-      </Suspense>
-      <Link
-        href="/cakes"
-        className="mt-8 inline-flex min-h-12 items-center justify-center rounded-full border border-cocoa/20 px-8 py-3 font-semibold text-cocoa transition hover:border-cocoa/40"
-      >
-        Back to cakes
-      </Link>
-    </section>
+    <Suspense fallback={<BuilderSkeleton />}>
+      <CakeBuilderRoute searchParams={searchParams} />
+    </Suspense>
   );
 }
 
-async function FlavourNotice({ searchParams }: Props) {
+/**
+ * The catalogue is fetched on the server and handed to the client builder as
+ * props — the builder never reaches for Supabase itself, so no anon key or
+ * cache directive ships to the browser.
+ */
+async function CakeBuilderRoute({ searchParams }: Props) {
   const { flavour } = await searchParams;
-  const flavours = await getFlavourCards();
-  const match = flavour ? flavours.find((f) => f.id === flavour) : undefined;
+
+  const [sizes, flavours, tiers, zones, blockedDates, settings] = await Promise.all([
+    getSizes(),
+    getFlavourCards(),
+    getDesignTiers(),
+    getDeliveryZones(),
+    getBlockedDates(),
+    getOrderSettings(),
+  ]);
 
   return (
-    <FadeUp>
-      <h1 className="font-display text-3xl font-bold text-cocoa">
-        {match ? `${match.name} selected` : "Cake builder"}
-      </h1>
-      <p className="mt-3 text-ink-muted">
-        {match
-          ? `${match.name} selected — the cake builder arrives in Phase 3.`
-          : "Cake builder arrives in Phase 3."}
-      </p>
-    </FadeUp>
+    <CakeBuilder
+      sizes={sizes}
+      flavours={flavours}
+      tiers={tiers}
+      zones={zones}
+      blockedDates={blockedDates}
+      settings={settings}
+      initialFlavourId={flavour ?? null}
+    />
   );
 }
 
+function BuilderSkeleton() {
+  return (
+    <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:py-14">
+      <div className="h-9 w-64 animate-pulse rounded bg-cocoa/10" />
+      <div className="mt-6 h-4 w-80 animate-pulse rounded bg-cocoa/10" />
+      <div className="mt-8 h-72 animate-pulse rounded-3xl bg-cocoa/10" />
+    </div>
+  );
+}
