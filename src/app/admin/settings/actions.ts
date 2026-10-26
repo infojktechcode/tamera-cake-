@@ -1,15 +1,19 @@
 "use server";
 
-import { createClient } from "@supabase/supabase-js";
-import { getSupabaseUrl, getSupabasePublishableKey } from "@/lib/supabase/env";
+import { cookies } from "next/headers";
+import { z } from "zod";
+
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
 
 export async function getSettings() {
-  const user = await requireUser();
-  const supabase = createClient(getSupabaseUrl(), getSupabasePublishableKey());
-  const { data } = await supabase.from("settings").select("*").single();
+  await requireUser();
+  const supabase = await createClient(await cookies());
+  const { data, error } = await supabase.from("settings").select("*").single();
+  if (error) throw new Error(`Could not load settings: ${error.message}`);
+  if (!data) throw new Error("Shop settings have not been configured.");
   return data;
 }
 
@@ -19,18 +23,25 @@ export async function updateSettings(formData: FormData) {
     throw new Error("Unauthorized");
   }
 
-  const supabase = createClient(getSupabaseUrl(), getSupabasePublishableKey());
-
-  const updates = {
+  const parsed = z.object({
+    whatsapp_number: z.string().trim().min(8).max(20),
+    daily_cake_limit: z.coerce.number().int().min(1).max(100),
+    deposit_percent: z.coerce.number().int().min(0).max(100),
+    min_lead_days: z.coerce.number().int().min(0).max(90),
+  }).safeParse({
     whatsapp_number: formData.get("whatsapp_number"),
-    daily_cake_limit: Number(formData.get("daily_cake_limit")),
-    deposit_percent: Number(formData.get("deposit_percent")),
-    min_lead_days: Number(formData.get("min_lead_days")),
-  };
+    daily_cake_limit: formData.get("daily_cake_limit"),
+    deposit_percent: formData.get("deposit_percent"),
+    min_lead_days: formData.get("min_lead_days"),
+  });
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Invalid shop settings.");
+  }
 
+  const supabase = await createClient(await cookies());
   const { error } = await supabase
     .from("settings")
-    .update(updates)
+    .update(parsed.data)
     .eq("id", 1);
 
   if (error) throw new Error(error.message);

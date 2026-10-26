@@ -128,7 +128,7 @@ describe("getDesignTiers", () => {
 });
 
 describe("getDeliveryZones", () => {
-  it("filters active=true and orders by sort_order", async () => {
+  it("filters active=true and orders by name", async () => {
     zonesChain._result = {
       data: [
         { id: "z1", name: "Pickup", fee: 0 },
@@ -143,7 +143,8 @@ describe("getDeliveryZones", () => {
     const zones = await getDeliveryZones();
 
     expect(zonesChain.eq).toHaveBeenCalledWith("active", true);
-    expect(zonesChain.order).toHaveBeenCalledWith("sort_order", { ascending: true });
+    // `delivery_zones` has no `sort_order` column — ordering by it errors.
+    expect(zonesChain.order).toHaveBeenCalledWith("name", { ascending: true });
     expect(zones[1].fee).toBe(200);
   });
 });

@@ -45,11 +45,14 @@ export async function getDesignTiers(): Promise<DesignTier[]> {
 export async function getDeliveryZones(): Promise<DeliveryZone[]> {
   cacheTag("catalog");
   cacheLife("hours");
+  // `delivery_zones` has no `sort_order` column (0002_tables.sql only adds it
+  // to profiles, categories, products, cake_flavours and cake_sizes), so the
+  // zones are ordered by name.
   const { data, error } = await getPublicClient()
     .from("delivery_zones")
-    .select("id,name,fee,sort_order,active")
+    .select("id,name,fee")
     .eq("active", true)
-    .order("sort_order", { ascending: true });
+    .order("name", { ascending: true });
   if (error) throw new Error(`getDeliveryZones: ${error.message}`);
   return (data ?? []).map((row) => ({ id: row.id, name: row.name, fee: row.fee }));
 }

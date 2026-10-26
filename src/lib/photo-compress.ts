@@ -1,34 +1,65 @@
 /**
- * Best-effort client-side resize of a reference photo. Resizes to a max width of
- * 1600px and re-encodes as JPEG at 0.8 quality; on any failure the original
- * file is returned unchanged so uploads never fail because of canvas/AbortError.
+ * Best-effort client-side photo compression.
+ *
+ * A modern phone camera produces 3–8 MB photos. On a slow 3G connection that
+ * is the difference between a customer waiting and giving up, so the image is
+ * downscaled and re-encoded before it is uploaded (spec §7.5: "compress uploads
+ * on the client before sending where possible").
+ *
+ * Every failure path returns the original file: a photo that cannot be
+ * decoded is still a photo the shop wants to see.
  */
 
-export const MAX_WIDTH = 1600;
-export const JPEG_QUALIFICATION = 0.8;
+const MAX_DIMENSION = 1600;
+const QUALITY = 0.8;
 
-export async function compressReferencePhoto(file: File): Promise<Blob> {
-  if (!file.type.startsWith("image/")) return file;
+/** `photo.png` -> `photo.jpg` (the re-encoded file is always a JPEG). */
+function toJpgName(name: string): string {
+  const base = name.replace(/\.[^.]+$/, "") || "photo";
+  return `${base}.jpg`;
+}
+
+export async function compressImage(file: File): Promise<File> {
+  // `createImageBitmap` is the fastest decode path and is absent in jsdom and
+  // in older Safari, where we simply upload the original.
+  if (typeof createImageBitmap !== "function") return file;
+
+  let bitmap: ImageBitmap;
   try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, MAX_WIDTH / bitmap.width);
-    const targetWidth = Math.round(bitmap.width * scale);
-    const targetHeight = Math.round(bitmap.height * scale);
+    bitmap = await createImageBitmap(file);
+  } catch {
+    return file;
+  }
+
+  try {
+    const longestSide = Math.max(bitmap.width, bitmap.height);
+    const scale = longestSide > MAX_DIMENSION ? MAX_DIMENSION / longestSide : 1;
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+
     const canvas = document.createElement("canvas");
-    canvas.width = targetWidth;
-    canvas.height = targetHeight;
+    canvas.width = width;
+    canvas.height = height;
     const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("no 2d context");
-    ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
-    return await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error("toBlob returned null"))),
-        "image/jpeg",
-        JPEG_QUALIFICATION,
-      );
+    if (!ctx) return file;
+
+    // PNGs can be transparent; JPEG cannot, so paint a white ground first.
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(bitmap, 0, 0, width, height);
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", QUALITY),
+    );
+    if (!blob) return file;
+
+    return new File([blob], toJpgName(file.name), {
+      type: "image/jpeg",
+      lastModified: file.lastModified,
     });
   } catch {
-    // Any decode/encode error falls back to the original file.
     return file;
+  } finally {
+    bitmap.close();
   }
 }

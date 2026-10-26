@@ -6,7 +6,6 @@ import { IMAGE_BLUR_DATA_URL } from "@/lib/blur";
 import { getFeaturedCakes, getPublicSettings } from "@/lib/catalog";
 import { formatKES } from "@/lib/format";
 import { getShopWhatsapp, waHref } from "@/lib/whatsapp";
-import { CartDrawer } from "@/components/public/CartDrawer";
 
 const STEPS = [
   "Pick your cake or pastry",

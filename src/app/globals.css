@@ -74,6 +74,13 @@ h1, h2, h3, h4, h5, .font-display {
 
 .font-mono-num { font-variant-numeric: tabular-nums; }
 
+/* A new order slides in and fades out again — the highlight that tells the
+   shop something just happened (spec §6.2). */
+@keyframes flash {
+  0% { background-color: color-mix(in srgb, var(--blush) 90%, transparent); }
+  100% { background-color: transparent; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

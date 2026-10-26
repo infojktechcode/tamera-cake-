@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { FadeUp, Stagger, StaggerItem } from "@/components/motion";
 import { IMAGE_BLUR_DATA_URL } from "@/lib/blur";
+import { useCart } from "@/lib/cart-store";
 import type { PastryItem } from "@/lib/catalog";
 import { formatKES } from "@/lib/format";
 import { visualFor } from "@/lib/visuals";
@@ -17,9 +18,8 @@ const TILES = [
 ] as const;
 
 /**
- * Client-side pastry browsing: data-driven category chips + card grid.
- * Browse-only by design in Phase 2 — no steppers or cart (cart lands in
- * Phase 3; see docs/DECISIONS.md).
+ * Client-side pastry browsing: data-driven category chips, card grid and
+ * quantity steppers that write into the shared cart.
  */
 export function PastryBrowser({
   pastries,
@@ -90,11 +90,77 @@ export function PastryBrowser({
                   </p>
                   <p className="text-xs text-ink-muted">{pastry.category}</p>
                 </div>
+                <PastryStepper pastry={pastry} />
               </article>
             </StaggerItem>
           ))}
         </Stagger>
       )}
+    </div>
+  );
+}
+
+/**
+ * The add / stepper controls for one pastry.
+ *
+ * "Add" puts one in the cart; the stepper appears once the pastry is there
+ * and edits the quantity in place. Stepping down to zero removes the item.
+ */
+function PastryStepper({ pastry }: { pastry: PastryItem }) {
+  const quantity = useCart((s) => {
+    const item = s.items.find(
+      (i) => i.kind === "pastry" && i.productId === pastry.id,
+    );
+    return item && item.kind === "pastry" ? item.quantity : 0;
+  });
+
+  const addPastry = useCart((s) => s.addPastry);
+  const updatePastryQty = useCart((s) => s.updatePastryQty);
+
+  return (
+    <div className="mt-3">
+      {quantity > 0 && (
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => updatePastryQty(pastry.id, quantity - 1)}
+            aria-label={`Decrease ${pastry.name}`}
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-cocoa/20 text-lg text-cocoa transition hover:border-cocoa/40"
+          >
+            −
+          </button>
+          <span
+            aria-live="polite"
+            aria-label={`${pastry.name} quantity`}
+            className="min-w-8 text-center text-sm font-semibold text-cocoa"
+          >
+            {quantity}
+          </span>
+          <button
+            type="button"
+            onClick={() => updatePastryQty(pastry.id, quantity + 1)}
+            aria-label={`Increase ${pastry.name}`}
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-strawberry text-lg font-semibold text-white transition hover:bg-strawberry-deep"
+          >
+            +
+          </button>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={() =>
+          addPastry({
+            productId: pastry.id,
+            name: pastry.name,
+            unitPrice: pastry.price,
+            quantity: 1,
+          })
+        }
+        aria-label={`Add ${pastry.name}`}
+        className="min-h-11 w-full rounded-full border border-strawberry px-4 py-2 text-sm font-semibold text-strawberry transition hover:bg-blush"
+      >
+        Add
+      </button>
     </div>
   );
 }

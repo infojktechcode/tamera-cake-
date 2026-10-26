@@ -9,7 +9,16 @@ import { toast } from "sonner";
 import { updateSettings } from "@/app/admin/settings/actions";
 
 interface SettingsFormProps {
-  initialSettings: any;
+  initialSettings: {
+    whatsapp_number: string;
+    daily_cake_limit: number;
+    deposit_percent: number;
+    min_lead_days: number;
+  };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Something went wrong.";
 }
 
 export function SettingsForm({ initialSettings }: SettingsFormProps) {
@@ -24,8 +33,8 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
       if (res.success) {
         toast.success("Settings updated successfully");
       }
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(errorMessage(err));
     } finally {
       setLoading(false);
     }

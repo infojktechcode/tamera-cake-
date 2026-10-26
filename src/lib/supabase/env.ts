@@ -39,7 +39,7 @@ export function getServiceRoleKey(): string {
     process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key) {
     throw new Error(
-      "Missing SUPABASE_SECRET_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY). This is required for admin provisioning scripts only — the app itself runs on the publishable key.",
+      "Missing SUPABASE_SECRET_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY). This server-only key is required for checkout, confirmation lookups, signed photo uploads, activity logging, and staff provisioning.",
     );
   }
   return key;

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 export type ShareMetaProduct = {
+  slug?: string;
   name: string;
   description: string | null;
   price: number;
@@ -26,5 +27,8 @@ export function buildShareMetadata(product: ShareMetaProduct, siteUrl: string): 
     title: product.name,
     description,
     openGraph: { type: "website", title: product.name, description, images },
+    ...(product.slug
+      ? { alternates: { canonical: new URL(`/p/${encodeURIComponent(product.slug)}`, siteUrl) } }
+      : {}),
   };
 }

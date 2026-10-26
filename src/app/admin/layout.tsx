@@ -1,8 +1,9 @@
 import Link from "next/link";
 
 import { logout } from "@/app/login/actions";
+import { NewOrdersBadge } from "@/components/admin/new-orders-badge";
+import { NewOrdersProvider } from "@/components/admin/new-orders-provider";
 import { Button } from "@/components/ui/button";
-import { OrderNotifications } from "@/components/admin/OrderNotifications";
 import {
   can,
   isAdminPathAllowed,
@@ -74,37 +75,39 @@ export default async function AdminLayout({
   const bottomNav = sidebarNav.filter((item) => mobileNav.includes(item.href));
 
   return (
-    <div className="min-h-dvh bg-cream text-cocoa">
-      <div className="mx-auto flex max-w-7xl">
-        {/* Desktop sidebar */}
-        <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col border-r border-cocoa/10 bg-white/70 px-3 py-5 lg:flex">
-          <Link href="/admin" className="mb-6 flex items-center gap-2 px-2">
-            <span
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-blush"
-              aria-hidden
-            >
-              🎂
-            </span>
-            <span className="font-display text-base font-semibold leading-tight">
-              Tamera&apos;s
-              <span className="block text-xs font-normal text-ink-muted">
-                Cakes &amp; Bakery
-              </span>
-            </span>
-          </Link>
-
-          <nav className="flex flex-1 flex-col gap-1" aria-label="Admin">
-            {sidebarNav.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex items-center gap-2.5 rounded-full px-3 py-2 text-sm font-medium text-cocoa/80 transition-colors hover:bg-vanilla hover:text-cocoa"
+    <NewOrdersProvider>
+      <div className="min-h-dvh bg-cream text-cocoa">
+        <div className="mx-auto flex max-w-7xl">
+          {/* Desktop sidebar */}
+          <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col border-r border-cocoa/10 bg-white/70 px-3 py-5 lg:flex">
+            <Link href="/admin" className="mb-6 flex items-center gap-2 px-2">
+              <span
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-blush"
+                aria-hidden
               >
-                <span aria-hidden>{item.icon}</span>
-                {item.label}
-              </Link>
-            ))}
-          </nav>
+                🎂
+              </span>
+              <span className="font-display text-base font-semibold leading-tight">
+                Tamera&apos;s
+                <span className="block text-xs font-normal text-ink-muted">
+                  Cakes &amp; Bakery
+                </span>
+              </span>
+            </Link>
+
+            <nav className="flex flex-1 flex-col gap-1" aria-label="Admin">
+              {sidebarNav.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="flex items-center gap-2.5 rounded-full px-3 py-2 text-sm font-medium text-cocoa/80 transition-colors hover:bg-vanilla hover:text-cocoa"
+                >
+                  <span aria-hidden>{item.icon}</span>
+                  {item.label}
+                  {item.href === "/admin/orders" && <NewOrdersBadge />}
+                </Link>
+              ))}
+            </nav>
 
           <div className="mt-4 border-t border-cocoa/10 px-2 pt-4">
             <p className="truncate text-sm font-medium">{user.fullName}</p>
@@ -136,7 +139,6 @@ export default async function AdminLayout({
               </Button>
             </form>
           </header>
-          <OrderNotifications />
           <main className="flex-1 px-4 py-5 pb-24 lg:px-8 lg:pb-8">{children}</main>
         </div>
       </div>
@@ -161,6 +163,7 @@ export default async function AdminLayout({
           ))}
         </div>
       </nav>
-    </div>
+      </div>
+    </NewOrdersProvider>
   );
 }
