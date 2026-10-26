@@ -89,6 +89,15 @@ the shop settings) is in `supabase/seed.sql`. The prices there are placeholders
 for the demo — replace them with Tamera's real prices in the Products screen
 before launch.
 
+## Admin screens (Phase 5)
+
+| Screen | Path | What it does |
+|---|---|---|
+| Products | `/admin/products` | Tabs for pastries / cake flavours / cake sizes / design tiers. Inline price, availability, stock, photo. Owner sees cost and margin; owner deletes. |
+| Customers | `/admin/customers` | Searchable list with orders count, lifetime spend, last order, repeat badge. Call / WhatsApp links. Detail page shows history. |
+| Walk-in | `/admin/walk-in` | Fast counter sale: pick pastries, name + phone + consent, take cash/M-Pesa/bank. Saved as completed + paid; stock moves via the trigger. |
+| Production calendar | `/admin/calendar` | Month / week / day views. Owner blocks/unblocks days; confirm step re-checks the calendar. |
+
 ## Commands
 
 | Command | What it does |
@@ -145,15 +154,26 @@ src/
   app/
     (public)/        home, cakes, pastries, order/cake, cart, checkout, order/[number]
     admin/           the staff dashboard
+      calendar/      production calendar, blocked dates
+      customers/     list + customer detail
+      walk-in/       counter-sale form
+      products/      catalogue tabs (pastries, flavours, sizes, tiers)
     api/             route handlers (orders, upload, admin)
   components/
     public/          CakeBuilder, CartDrawer, CartView, CheckoutForm, Confetti
-    admin/           OrdersBoard, OrderDetailPanel, StatusPill
+    admin/           OrdersBoard, OrderDetailPanel, StatusPill, ProductsTabs, CustomersTable, WalkInForm, ProductionCalendar
     motion/          reusable animation wrappers
   lib/
     pricing.ts       pure cake and cart price functions
     rules.ts         lead time, capacity and blocked-date checks
     order-status.ts  the order status machine
+    product-edit.ts  pure catalogue-edit guards (margin, image path, dirty check)
+    walk-in.ts       walk-in sale arithmetic
+    customer-stats.ts pure customer summary math
+    admin-calendar.ts calendar data helpers
+    admin-date-check.ts confirm-time date rules
+    format.ts        KES / Kenyan phone / Nairobi clock formatting
+    product-image.ts image-path resolver
     whatsapp.ts      wa.me link builders
     supabase/        browser, server, service and public clients
 supabase/

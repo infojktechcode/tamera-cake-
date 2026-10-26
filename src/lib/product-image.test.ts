@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveProductImage } from "./product-image";
+import { buildProductImagePath, resolveProductImage } from "./product-image";
 
 describe("resolveProductImage", () => {
   const supabase = "https://abc.supabase.co";
@@ -34,5 +34,18 @@ describe("resolveProductImage", () => {
 
   it("returns null when the project url is missing", () => {
     expect(resolveProductImage("products/a.jpg", undefined)).toBeNull();
+  });
+});
+
+describe("buildProductImagePath", () => {
+  it("uses the mime type for the extension", () => {
+    expect(buildProductImagePath("image/jpeg", "abc")).toBe("products/abc.jpg");
+    expect(buildProductImagePath("image/png", "abc")).toBe("products/abc.png");
+    expect(buildProductImagePath("image/webp", "abc")).toBe("products/abc.webp");
+  });
+
+  it("refuses anything that is not a photo", () => {
+    expect(() => buildProductImagePath("image/gif", "abc")).toThrow();
+    expect(() => buildProductImagePath("text/html", "abc")).toThrow();
   });
 });

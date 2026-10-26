@@ -187,3 +187,80 @@ choice was made and recorded here.
   `getStaffSession()` returns both the identity and a client scoped to it, so
   RLS applies either way.
 
+## 10. Phase 5 (products, customers, walk-in, calendar)
+
+### 10.1 Products management
+
+- **Four tables under one screen.** Products (pastries + showcase cakes), cake
+  flavours, cake sizes and design tiers are edited in place. The tabs are
+  Products / Flavours / Sizes / Tiers; the state lives in the client so a save
+  updates the row without a full round trip, but the server remains the source of
+  truth on the next visit.
+- **Role-separated columns at the database level.** `product_costs` is only
+  readable by the owner through RLS (`superadmin_costs_all`), so a manager
+  *never receives a cost price* — there is nothing to hide in the browser. The
+  same policy restricts price changes and product deletion to the owner
+  (`staff_update_products` / `superadmin_delete_products`). The API re-checks
+  every capability with `permissions.ts` for anyone calling it directly.
+- **Photos upload via signed URLs, like the customer reference photos.** The
+  staff-only route `POST /api/admin/product-image` signs a path in the
+  `product-images` bucket; the browser PUTs the compressed bytes straight to
+  storage. The returned path is what `PATCH /api/admin/products/[id]` stores in
+  `image_url`. A helper (`isValidProductImagePath`) only accepts paths that the
+  app itself can create (`/showcase/*.jpg` from the seed and
+  `products/<random>.<ext>` from uploads) so a malicious input can never point
+  the column at an arbitrary file or another bucket.
+- **On-demand revalidation is instant.** Every mutation calls
+  `revalidateTag("catalog", { expire: 0 })` so the public pastries page, the
+  cake builder and the checkout all see the change on the next load. The
+  `profile="max"` used for background mutations is too slow for a dashboard
+  where the person making the edit wants to see it immediately.
+- **A product on a past order cannot be deleted** (the foreign key from
+  `order_items` blocks it); the API returns `409` with a clear message and the
+  UI offers "switch it off" instead. This keeps the order history intact.
+
+### 10.2 Customers
+
+- **A customer is a phone number.** The order route upserts on it, so the same
+  person always lands on one record whether they ordered online or walked in.
+- **Statistics are pure.** `customer-stats.ts` has 10 tests; the client table
+  and the server page share them, so the cancelled-order exclusion and the
+  repeat badge are identical everywhere.
+- **Call and WhatsApp links from the table.** `tel:` opens the dialer; the
+  WhatsApp link pre-fills a friendly greeting that mentions the customer's first
+  name.
+- **Phone numbers display as `0720 009 999`** (`formatKenyanPhone`), so the
+  shop reads them the way they speak them. The `href` still uses the `254…`
+  format that WhatsApp expects.
+
+### 10.3 Walk-in sales
+
+- **A walk-in is a shop customer buying pastries over the counter** (spec §6.2).
+  The form shows available pastries with a `+`/`-` stepper, a tiny stock hint,
+  and a running total. The customer is a name + phone + a consent checkbox.
+- **The server recomputes every price.** The browser sends ids and quantities;
+  `POST /api/admin/walk-in` loads the catalogue again and computes the total
+  itself, exactly like the online order route.
+- **Going through `confirmed` keeps the stock rule in one place.** The sale is
+  inserted as `new`, the payment is recorded, then the order moves to
+  `confirmed` — the database trigger takes the pastries off the shelf — and
+  finally to `completed`. Duplicating the stock logic in the route would be a
+  second source of bugs.
+- **A returning phone keeps its history and never loses a previous consent.**
+  The upsert merges `consent = existing.consent || new.consent`, so an opt-in
+  is permanent.
+- **Activity is logged** (`walk_in_sale` with the order number and total) so the
+  owner sees every counter sale in the activity feed.
+
+### 10.4 Production calendar
+
+- **A day is blocked or open.** `POST/DELETE /api/admin/blocked-dates` are
+  owner-only and logged. The calendar page shows a month grid (compact on
+  mobile), a week strip and a day panel; the day panel is where a blocked day
+  is toggled.
+- **The confirm step checks the calendar again.** A date can be blocked or
+  filled up between the customer placing the order and the shop saying yes.
+  `checkOrderDateRules` is called in `PATCH /api/admin/orders/[id]` when the
+  status moves to `confirmed`, so a blocked day returns `400` at confirm time
+  even if the order was placed when the day was open.
+
