@@ -332,3 +332,27 @@ choice was made and recorded here.
 - **The daily table shows profit per day.** Revenue − known cost − expenses.
   Days with no sales or expenses still render a row, so the strip is always
   seven days and the owner can see at a glance where the month is.
+
+### 11.3 Activity log
+
+- **Single source of truth, already populated.** Every mutating route in the
+  app (orders, walk-in, blocked dates, expenses, products, catalogue options,
+  payments, price edits) writes a row to `activity_log` via the service client.
+  The screen is a pure read of that table.
+- **Owner-only, triple-locked.** The nav hides it (`viewActivityLog`), the
+  proxy redirects managers, the page checks `can(role, "viewActivityLog")`,
+  and the table has superadmin-only RLS (`superadmin_read_activity`). A
+  manager who bypasses the first two still receives nothing.
+- **Cursor pagination, not offset.** The loader returns 50 rows plus a
+  `nextCursor` (the `created_at` of the last row). The "Load more" button
+  submits a form with the cursor; the server re-queries with `.lt("created_at",
+  cursor)`. No client-side fetch, works without JS for the first page.
+- **Record links back to the source.** Orders, products, expenses, blocked
+  dates and staff all link to their admin page so the owner can jump from the
+  log to the affected record.
+- **JSON diff shown inline.** `old_value` and `new_value` are collapsible
+  `<details>` blocks — no separate modal, no extra round trip.
+- **Action labels are human.** The raw `order_status_changed` becomes
+  "Order status changed"; unknown actions fall back to underscore→space.
+  Tables are similarly mapped (`orders` → "Orders", `cake_flavours` → "Cake
+  flavours", etc.).

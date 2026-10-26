@@ -104,6 +104,7 @@ before launch.
 |---|---|---|
 | Sales | `/admin/sales` | Sales today / this week / this month, money paid in, average order value, a 7-day chart, best sellers, slow movers and the earnings projection with its plain-language sentence. No costs or profit — those belong to Finance. |
 | Finance | `/admin/finance` | **Owner only.** Profit & loss for today, this week and this month on Nairobi days, with the cost coverage caveat (cake flavours have no cost price). Expenses log with add/delete and category datalist. |
+| Activity | `/admin/activity` | **Owner only.** Paginated log of every price, stock, status and payment change. Shows user, action, table, record link and JSON diff. Load-more cursor pagination. |
 
 ## Commands
 
@@ -180,6 +181,7 @@ src/
     catalogue-admin.ts server loader for the four catalogue tables
     admin-sales.ts    server loader for the sales summary
     admin-finance.ts  server loader for the finance screen
+    admin-activity.ts server loader for the activity log
     finance.ts       pure P&L arithmetic (periods, COGS, expenses, coverage)
     walk-in.ts       walk-in sale arithmetic
     customer-stats.ts pure customer summary math
