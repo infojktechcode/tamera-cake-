@@ -264,3 +264,38 @@ choice was made and recorded here.
   status moves to `confirmed`, so a blocked day returns `400` at confirm time
   even if the order was placed when the day was open.
 
+
+## 11. Phase 6 (insight)
+
+### 11.1 Sales summary
+
+- **Sales and money in are two different numbers, and the screen shows both.**
+  *Sales* is what the shop has booked — order totals with cancelled orders
+  left out, bucketed by the Nairobi day the order was placed. *Paid* is what
+  actually arrived — payments recorded in that window, refunds included as
+  negatives. Only the booked figure drives the projection, because the
+  projection is about demand, not about when a balance was chased.
+- **Everything is bucketed on Africa/Nairobi time, not UTC.** An order placed
+  at 22:30 UTC belongs to tomorrow's "today" in the shop. The pure module
+  (`sales-summary.ts`) does the date maths through the same `todayInKenya`
+  helper the rest of the app uses, and the tests pin the boundary.
+- **The projection is exactly as specified:** sales so far ÷ days elapsed ×
+  days in month, rounded to whole shillings, with a plain sentence ("Sales are
+  running at about KES 1,286 a day; at this pace October 2026 will finish at
+  KES 39,859"). With no sales yet it says the projection appears with the
+  first order rather than showing a confident KES 0.
+- **Best sellers rank by items sold; slow movers list the catalogue lines
+  that sold least, zeros included.** A line whose order lost its product id
+  keys on its name instead, so the same product cannot appear twice in the
+  ranking, and an unlinked line still credits the catalogue product of the
+  same name. Only currently-available products and flavours are offered as
+  slow movers — a switched-off line is not something to promote.
+- **The screen is role-safe by construction, not by hiding.** `/admin/sales`
+  is open to both roles (spec §3: sales figures and the projection are a
+  manager view), and the loader only reads orders, order items, payments,
+  products and flavours — tables RLS already lets either role read. There is
+  no cost price, margin, expense or profit anywhere in the payload, so a
+  manager never receives a number they must not see. Costs and expenses stay
+  on the owner-only finance screen.
+- **The 7-day strip is CSS, not a chart library.** Seven bars from a `div`
+  with pixel heights keep the page server-rendered and the bundle unchanged.

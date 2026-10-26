@@ -98,6 +98,12 @@ before launch.
 | Walk-in | `/admin/walk-in` | Fast counter sale: pick pastries, name + phone + consent, take cash/M-Pesa/bank. Saved as completed + paid; stock moves via the trigger. |
 | Production calendar | `/admin/calendar` | Month / week / day views. Owner blocks/unblocks days; confirm step re-checks the calendar. |
 
+## Admin screens (Phase 6)
+
+| Screen | Path | What it does |
+|---|---|---|
+| Sales | `/admin/sales` | Sales today / this week / this month, money paid in, average order value, a 7-day chart, best sellers, slow movers and the earnings projection with its plain-language sentence. No costs or profit — those belong to Finance. |
+
 ## Commands
 
 | Command | What it does |
@@ -158,6 +164,7 @@ src/
       customers/     list + customer detail
       walk-in/       counter-sale form
       products/      catalogue tabs (pastries, flavours, sizes, tiers)
+      sales/         sales summary and earnings projection
     api/             route handlers (orders, upload, admin)
   components/
     public/          CakeBuilder, CartDrawer, CartView, CheckoutForm, Confetti
@@ -168,6 +175,9 @@ src/
     rules.ts         lead time, capacity and blocked-date checks
     order-status.ts  the order status machine
     product-edit.ts  pure catalogue-edit guards (margin, image path, dirty check)
+    sales-summary.ts pure sales arithmetic (periods, projection, rankings)
+    catalogue-admin.ts server loader for the four catalogue tables
+    admin-sales.ts    server loader for the sales summary
     walk-in.ts       walk-in sale arithmetic
     customer-stats.ts pure customer summary math
     admin-calendar.ts calendar data helpers
