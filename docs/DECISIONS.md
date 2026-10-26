@@ -299,3 +299,36 @@ choice was made and recorded here.
   on the owner-only finance screen.
 - **The 7-day strip is CSS, not a chart library.** Seven bars from a `div`
   with pixel heights keep the page server-rendered and the bundle unchanged.
+
+### 11.2 Finance (profit & loss + expenses log)
+
+- **Cost of goods is only partly knowable.** `product_costs` carries a cost
+  price for every product (pastries and showcase cakes), but a cake ordered
+  through the builder is a flavour + size + tier and flavours have no cost
+  column — the database simply does not record what a cake costs to make.
+  Rather than invent a number, the module reports the *coverage*: the share
+  of line revenue whose cost price is known. Profit is labelled and shown
+  alongside that coverage, so an upper figure can never be read as an exact
+  one.
+- **Periods are Africa/Nairobi days, like sales.** Today = Nairobi date of
+  `created_at`; this week = Monday to today; this month = 1st to today. The
+  seven-day table uses the same `todayInKenya` helper. Cancelled orders are
+  excluded everywhere.
+- **Expenses bucket by `spent_on` (a plain date).** The expenses table stores
+  the day the money was spent, not a timestamp with timezone, so no conversion
+  is needed — the date string compares directly.
+- **The expenses log is owner-only end-to-end.** The page and the proxy block
+  managers; the API checks `can(role, "viewExpenses")`; the table has
+  superadmin-only RLS (`superadmin_expenses_all`). A manager who bypasses
+  the path guard would still receive empty arrays from the database.
+- **Add + delete only; no edit.** Editing an expense is a rarer action and
+  would require a PATCH route, a form state, and a way to cancel the edit.
+  Deleting and re-adding is fast enough for the intended use (catching a typo
+  in the amount or category).
+- **Category is free text with a datalist.** The seed has no expense
+  categories; the UI suggests common ones (Ingredients, Packaging, Transport,
+  Utilities, Rent, Staff, Marketing, Equipment, Other) but lets the owner type
+  anything up to 60 characters.
+- **The daily table shows profit per day.** Revenue − known cost − expenses.
+  Days with no sales or expenses still render a row, so the strip is always
+  seven days and the owner can see at a glance where the month is.
