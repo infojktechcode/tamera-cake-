@@ -2,12 +2,25 @@
 
 import { cacheLife, cacheTag } from "next/cache";
 import { getPublicClient } from "./supabase/public";
+import { publicSettingsSchema } from "./settings-schema";
 
+/**
+ * Publicly readable settings. `sms_enabled` / `sms_provider` are
+ * deliberately excluded — the `anon_read_settings` RLS policy exposes
+ * every selected column, and those flags are server-side only.
+ */
 export type PublicSettings = {
   shop_name: string;
   whatsapp_number: string;
   address: string | null;
   opening_hours: Record<string, { open: string; close: string }>; // keys mon..sun
+  social_links: Record<string, string>;
+  faq_items: Array<{ question: string; answer: string }>;
+  delivery_policy: string | null;
+  payment_policy: string | null;
+  cancellation_policy: string | null;
+  brand_colours: Record<string, string>;
+  logo_url: string | null;
 };
 export type ShowcaseCake = {
   slug: string;
@@ -46,10 +59,12 @@ export async function getPublicSettings(): Promise<PublicSettings> {
   cacheLife("hours");
   const { data, error } = await getPublicClient()
     .from("settings")
-    .select("shop_name,whatsapp_number,address,opening_hours")
+    .select(
+      "shop_name,whatsapp_number,address,opening_hours,social_links,faq_items,delivery_policy,payment_policy,cancellation_policy,brand_colours,logo_url",
+    )
     .single();
   if (error) throw new Error(`getPublicSettings: ${error.message}`);
-  return data as PublicSettings;
+  return publicSettingsSchema.parse(data);
 }
 
 /** The 8 showcase cakes are the only products with `/showcase/*.jpg` images. */
@@ -85,6 +100,42 @@ export async function getFlavourCards(): Promise<FlavourCard[]> {
     .order("sort_order", { ascending: true });
   if (error) throw new Error(`getFlavourCards: ${error.message}`);
   return (data ?? []) as FlavourCard[];
+}
+
+export function findBestFlavourMatch(
+  productName: string,
+  flavours: Array<Pick<FlavourCard, "id" | "name">>,
+): string | null {
+  const normalize = (text: string) =>
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+
+  const target = normalize(productName);
+  if (!target) return null;
+
+  let bestId: string | null = null;
+  let bestScore = -1;
+
+  for (const flavour of flavours) {
+    const name = normalize(flavour.name);
+    if (!name) continue;
+
+    if (name === target) return flavour.id;
+
+    const score =
+      target.includes(name) || name.includes(target)
+        ? 3
+        : name.split(" ").filter(Boolean).filter((word) => target.includes(word)).length;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestId = flavour.id;
+    }
+  }
+
+  return bestScore > 0 ? bestId : null;
 }
 
 /** Active pastry category names, sorted. Chips prepend "All" in the component. */
