@@ -32,3 +32,29 @@ export function buildShareMetadata(product: ShareMetaProduct, siteUrl: string): 
       : {}),
   };
 }
+
+/**
+ * Build Next.js Metadata for a standalone public page (home, cakes, gallery…).
+ *
+ * Includes Open Graph, Twitter/X, and a canonical URL so WhatsApp/Twitter
+ * previews render correctly. `image` (if given) is resolved to an absolute
+ * URL against `siteUrl`. Pure function — the page supplies `siteUrl` via
+ * `getSiteUrl()`.
+ */
+export function buildPageMetadata(opts: {
+  title: string;
+  description: string;
+  siteUrl: string;
+  path?: string;
+  image?: string | null;
+}): Metadata {
+  const { title, description, siteUrl, path, image } = opts;
+  const images = image ? [{ url: new URL(image, siteUrl).toString() }] : [];
+  return {
+    title,
+    description,
+    openGraph: { type: "website", title, description, images },
+    twitter: { card: "summary", title, description, ...(images.length ? { images } : {}) },
+    ...(path ? { alternates: { canonical: new URL(path, siteUrl) } } : {}),
+  };
+}

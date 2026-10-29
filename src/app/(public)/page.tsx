@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { FadeUp, Floating, Stagger, StaggerItem } from "@/components/motion";
@@ -5,7 +6,19 @@ import { HeroImage } from "@/components/public/hero";
 import { IMAGE_BLUR_DATA_URL } from "@/lib/blur";
 import { getFeaturedCakes, getPublicSettings } from "@/lib/catalog";
 import { formatKES } from "@/lib/format";
+import { buildPageMetadata } from "@/lib/og";
+import { getSiteUrl } from "@/lib/supabase/env";
 import { getShopWhatsapp, waHref } from "@/lib/whatsapp";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return buildPageMetadata({
+    title: "Fresh cakes, pastries and custom bakes in Kitengela",
+    description:
+      "Order cakes and pastries in Kitengela, Kenya. Custom celebration cakes, same-day pastries, pickup and delivery options, and a simple deposit-based ordering flow.",
+    siteUrl: getSiteUrl(),
+    path: "/",
+  });
+}
 
 const STEPS = [
   "Pick your cake or pastry",
@@ -30,9 +43,31 @@ export default async function HomePage() {
   ]);
   const address = settings.address ?? "Kitengela, Nairobi";
   const mapHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  const businessJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Bakery",
+    name: "Tamera's Cakes & Bakery",
+    telephone: getShopWhatsapp(),
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: address,
+      addressLocality: "Kitengela",
+      addressRegion: "Nairobi County",
+      addressCountry: "KE",
+    },
+    openingHours: "Mo-Su 08:00-20:00",
+    priceRange: "KES 500-KES 8000",
+    url: "https://tameras-cakes.vercel.app",
+    description:
+      "Fresh cakes, pastries and custom celebration bakes in Kitengela, Kenya.",
+  };
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(businessJsonLd) }}
+      />
       {/* 1 — Hero: headline, sprinkles, parallax image, two large choices. */}
       <section className="relative overflow-hidden bg-gradient-to-b from-blush/40 to-cream">
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -165,7 +200,60 @@ export default async function HomePage() {
         </FadeUp>
       </section>
 
-      {/* 5 — WhatsApp CTA. */}
+      <section className="mx-auto w-full max-w-5xl px-4 py-12 sm:py-16">
+        <FadeUp>
+          <div className="grid gap-6 rounded-3xl border border-cocoa/10 bg-vanilla/70 p-6 sm:grid-cols-2 sm:p-8">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-ink-muted">Visit us</p>
+              <h2 className="mt-2 font-display text-2xl font-bold text-cocoa">Cake pickup and delivery</h2>
+              <p className="mt-3 text-ink-muted">{address}</p>
+              <p className="mt-2 text-sm text-cocoa">
+                Call or WhatsApp us on <a href={waHref(getShopWhatsapp(), "Hi Tamera! I'd like to order.")}>{getShopWhatsapp()}</a>.
+              </p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-ink-muted">Opening hours</p>
+              <p className="mt-2 text-ink-muted">Mon–Sun: 8:00am–8:00pm</p>
+              <p className="mt-4 text-sm text-cocoa">Deposits secure your order, and changes/cancellations are subject to our bakery policy.</p>
+            </div>
+          </div>
+        </FadeUp>
+      </section>
+
+      <section className="bg-blush/50 py-12 sm:py-16">
+        <div className="mx-auto w-full max-w-5xl px-4">
+          <FadeUp>
+            <h2 className="font-display text-2xl font-bold text-cocoa sm:text-3xl">FAQs</h2>
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-cocoa/10 bg-vanilla/70 p-5">
+                <h3 className="font-semibold text-cocoa">How much is the deposit?</h3>
+                <p className="mt-2 text-sm text-ink-muted">
+                  The deposit is set in the bakery settings and confirms the order before baking begins.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-cocoa/10 bg-vanilla/70 p-5">
+                <h3 className="font-semibold text-cocoa">Can I change my order?</h3>
+                <p className="mt-2 text-sm text-ink-muted">
+                  Changes are welcome when we have not started baking. Contact us on WhatsApp as early as possible.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-cocoa/10 bg-vanilla/70 p-5">
+                <h3 className="font-semibold text-cocoa">Do you handle allergens?</h3>
+                <p className="mt-2 text-sm text-ink-muted">
+                  We bake in a kitchen that handles common allergens. Please tell us about allergies when you order.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-cocoa/10 bg-vanilla/70 p-5">
+                <h3 className="font-semibold text-cocoa">How much notice do you need?</h3>
+                <p className="mt-2 text-sm text-ink-muted">
+                  We recommend confirming your date at least a few days in advance. Custom cakes are booked based on the bakery calendar.
+                </p>
+              </div>
+            </div>
+          </FadeUp>
+        </div>
+      </section>
+
       <section className="bg-blush/50 py-12 sm:py-16">
         <div className="mx-auto w-full max-w-5xl px-4 text-center">
           <FadeUp>
