@@ -7,6 +7,13 @@ import { IMAGE_BLUR_DATA_URL } from "@/lib/blur";
 import { getFeaturedCakes, getPublicSettings } from "@/lib/catalog";
 import { formatKES } from "@/lib/format";
 import { buildPageMetadata } from "@/lib/og";
+import {
+  buildOpeningHoursJsonLd,
+  formatOpeningHours,
+  resolveFaq,
+  resolvePolicyLinks,
+  resolveSocialLinks,
+} from "@/lib/public-content";
 import { getSiteUrl } from "@/lib/supabase/env";
 import { getShopWhatsapp, waHref } from "@/lib/whatsapp";
 
@@ -43,6 +50,9 @@ export default async function HomePage() {
   ]);
   const address = settings.address ?? "Kitengela, Nairobi";
   const mapHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  const faq = resolveFaq(settings.faq_items);
+  const socialLinks = resolveSocialLinks(settings.social_links);
+  const policyLinks = resolvePolicyLinks(settings);
   const businessJsonLd = {
     "@context": "https://schema.org",
     "@type": "Bakery",
@@ -55,7 +65,7 @@ export default async function HomePage() {
       addressRegion: "Nairobi County",
       addressCountry: "KE",
     },
-    openingHours: "Mo-Su 08:00-20:00",
+    ...buildOpeningHoursJsonLd(settings.opening_hours),
     priceRange: "KES 500-KES 8000",
     url: "https://tameras-cakes.vercel.app",
     description:
@@ -213,42 +223,63 @@ export default async function HomePage() {
             </div>
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-ink-muted">Opening hours</p>
-              <p className="mt-2 text-ink-muted">Mon–Sun: 8:00am–8:00pm</p>
+              <p className="mt-2 text-ink-muted">{formatOpeningHours(settings.opening_hours)}</p>
               <p className="mt-4 text-sm text-cocoa">Deposits secure your order, and changes/cancellations are subject to our bakery policy.</p>
+              {policyLinks.length > 0 && (
+                <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                  {policyLinks.map((policy) => (
+                    <li key={policy.key}>
+                      <Link
+                        href={policy.href}
+                        className="text-strawberry underline-offset-2 hover:underline"
+                      >
+                        {policy.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </FadeUp>
       </section>
+
+      {socialLinks.length > 0 && (
+        <section className="mx-auto w-full max-w-5xl px-4 pb-4">
+          <FadeUp>
+            <h2 className="sr-only">Follow us</h2>
+            <ul className="flex flex-wrap justify-center gap-3">
+              {socialLinks.map((social) => (
+                <li key={social.key}>
+                  <a
+                    href={social.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-10 items-center rounded-full border border-cocoa/10 bg-vanilla/70 px-4 py-2 text-sm font-medium text-cocoa transition hover:bg-vanilla"
+                  >
+                    {social.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </FadeUp>
+        </section>
+      )}
 
       <section className="bg-blush/50 py-12 sm:py-16">
         <div className="mx-auto w-full max-w-5xl px-4">
           <FadeUp>
             <h2 className="font-display text-2xl font-bold text-cocoa sm:text-3xl">FAQs</h2>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-cocoa/10 bg-vanilla/70 p-5">
-                <h3 className="font-semibold text-cocoa">How much is the deposit?</h3>
-                <p className="mt-2 text-sm text-ink-muted">
-                  The deposit is set in the bakery settings and confirms the order before baking begins.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-cocoa/10 bg-vanilla/70 p-5">
-                <h3 className="font-semibold text-cocoa">Can I change my order?</h3>
-                <p className="mt-2 text-sm text-ink-muted">
-                  Changes are welcome when we have not started baking. Contact us on WhatsApp as early as possible.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-cocoa/10 bg-vanilla/70 p-5">
-                <h3 className="font-semibold text-cocoa">Do you handle allergens?</h3>
-                <p className="mt-2 text-sm text-ink-muted">
-                  We bake in a kitchen that handles common allergens. Please tell us about allergies when you order.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-cocoa/10 bg-vanilla/70 p-5">
-                <h3 className="font-semibold text-cocoa">How much notice do you need?</h3>
-                <p className="mt-2 text-sm text-ink-muted">
-                  We recommend confirming your date at least a few days in advance. Custom cakes are booked based on the bakery calendar.
-                </p>
-              </div>
+              {faq.map((item) => (
+                <div
+                  key={item.question}
+                  className="rounded-2xl border border-cocoa/10 bg-vanilla/70 p-5"
+                >
+                  <h3 className="font-semibold text-cocoa">{item.question}</h3>
+                  <p className="mt-2 text-sm text-ink-muted">{item.answer}</p>
+                </div>
+              ))}
             </div>
           </FadeUp>
         </div>
