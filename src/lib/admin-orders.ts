@@ -193,6 +193,9 @@ export async function getOrderDetail(
       .from("payments")
       .select("id, method, amount, reference_code, paid_at, reason")
       .eq("order_id", id)
+      // Pending/failed M-Pesa attempts are not payments; the timeline shows
+      // their story via the activity log instead.
+      .eq("payment_status", "completed")
       .order("paid_at", { ascending: false }),
     supabase
       .from("activity_log")

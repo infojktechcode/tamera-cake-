@@ -53,3 +53,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .worktrees/
+
+# AI coding-agent skills (cloned third-party skill repos; not versioned)
+.claude/skills/
+.agents/skills/

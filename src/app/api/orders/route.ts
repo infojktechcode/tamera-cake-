@@ -14,6 +14,7 @@ import type {
   ResolvedZone,
 } from "@/lib/order-compute";
 import { normalizePhone } from "@/lib/phone";
+import { startDepositForNewOrder } from "@/lib/mpesa/checkout";
 import { orderLimiter } from "@/lib/rate-limit";
 import { createServiceClient } from "@/lib/supabase/service";
 import { orderPayloadSchema, type OrderPayload } from "@/lib/validators/order.schema";
@@ -91,9 +92,19 @@ async function loadCatalogue(
   };
 }
 
+/** Optional M-Pesa state, present only when a deposit was actually attempted. */
+type PaymentState =
+  | { required: true; initiated: true }
+  | { required: true; initiated: false; message: string };
+
 export async function POST(
   req: Request,
-): Promise<NextResponse<{ ok: true; confirmation_token: string } | { ok: false; error: string }>> {
+): Promise<
+  NextResponse<
+    | { ok: true; confirmation_token: string; payment?: PaymentState }
+    | { ok: false; error: string }
+  >
+> {
   // --- 1. rate limit by IP (spec §10) ---
   const limit = orderLimiter.check(req.headers);
   if (!limit.ok) {
@@ -293,7 +304,40 @@ export async function POST(
     // revalidation runs in the background.
     revalidateTag("catalog", "max");
 
-    return NextResponse.json({ ok: true, confirmation_token: result.confirmation_token });
+    // A deposit is due: ask Daraja for an STK Push. The amount is recomputed
+    // inside checkout.ts from the database row — the customer's phone number
+    // is the only client input that reaches M-Pesa. Payment problems must not
+    // cost the customer their order, so failures only shape the response.
+    let payment: PaymentState | undefined;
+    if (order.depositRequired > 0) {
+      try {
+        const outcome = await startDepositForNewOrder({
+          service,
+          confirmationToken: result.confirmation_token,
+          phone,
+        });
+        if (outcome.status === "initiated" || outcome.status === "already_pending") {
+          payment = { required: true, initiated: true };
+        } else if (outcome.status !== "unconfigured") {
+          // Daraja unconfigured → leave `payment` off entirely, so a site
+          // without M-Pesa credentials behaves exactly as before Phase 1.
+          payment = { required: true, initiated: false, message: outcome.error };
+        }
+      } catch (e) {
+        console.error(`POST /api/orders: deposit initiation failed: ${(e as Error).message}`);
+        payment = {
+          required: true,
+          initiated: false,
+          message: "We could not start your M-Pesa payment. You can retry on the confirmation page.",
+        };
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      confirmation_token: result.confirmation_token,
+      ...(payment ? { payment } : {}),
+    });
   } catch (e) {
     console.error(`POST /api/orders: ${(e as Error).message}`);
     return internalError();

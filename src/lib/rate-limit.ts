@@ -76,3 +76,19 @@ export const orderLimiter = createRateLimiter({ limit: 6, windowMs: 60_000 });
 
 /** The limiter the upload route uses. */
 export const uploadLimiter = createRateLimiter({ limit: 12, windowMs: 60_000 });
+
+/**
+ * M-Pesa deposit retries. Six per minute is plenty for a human who mistyped a
+ * number and stops a script from spamming Daraja with STK Pushes (each of
+ * which pings a real phone).
+ */
+export const mpesaRetryLimiter = createRateLimiter({ limit: 6, windowMs: 60_000 });
+
+/** Confirmation-page status polling. One poll every 4s is the client default. */
+export const mpesaStatusLimiter = createRateLimiter({ limit: 60, windowMs: 60_000 });
+
+/**
+ * The Daraja callback itself. Generous — Safaricom retries callbacks — but
+ * capped so a flood cannot fill the logs or the payments table.
+ */
+export const mpesaCallbackLimiter = createRateLimiter({ limit: 120, windowMs: 60_000 });

@@ -4,14 +4,19 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { Confetti } from "@/components/public/Confetti";
+import { MpesaDepositPanel } from "@/components/public/MpesaDepositPanel";
 import { FadeUp } from "@/components/motion";
 import { formatKES } from "@/lib/format";
 import { getMessageTemplates } from "@/lib/message-templates";
 import { getOrderByPublicToken } from "@/lib/order-lookup";
+import { isDarajaConfigured } from "@/lib/supabase/env";
 import { getShopWhatsapp, waHref } from "@/lib/whatsapp";
 import { renderTemplate } from "@/lib/whatsapp-templates";
 
-type Props = { params: Promise<{ token: string }> };
+type Props = {
+  params: Promise<{ token: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
@@ -24,22 +29,30 @@ export async function generateMetadata(): Promise<Metadata> {
 /**
  * The random token in the confirmation URL prevents order-number enumeration.
  */
-export default function OrderConfirmationPage({ params }: Props) {
+export default function OrderConfirmationPage({ params, searchParams }: Props) {
   return (
     <section className="relative mx-auto w-full max-w-3xl px-4 py-12 sm:py-16">
       <Confetti />
       <Suspense fallback={<ConfirmationSkeleton />}>
-        <OrderConfirmation tokenPromise={params} />
+        <OrderConfirmation tokenPromise={params} searchPromise={searchParams} />
       </Suspense>
     </section>
   );
 }
 
-async function OrderConfirmation({ tokenPromise }: { tokenPromise: Props["params"] }) {
+async function OrderConfirmation({
+  tokenPromise,
+  searchPromise,
+}: {
+  tokenPromise: Props["params"];
+  searchPromise?: Props["searchParams"];
+}) {
   const { token } = await tokenPromise;
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(token)) {
     notFound();
   }
+  const search = (await searchPromise) ?? {};
+  const paymentIssue = search.paymentIssue === "1";
   const [order, templates] = await Promise.all([
     getOrderByPublicToken(token),
     getMessageTemplates(),
@@ -55,6 +68,19 @@ async function OrderConfirmation({ tokenPromise }: { tokenPromise: Props["params
         day: "numeric",
       }).format(new Date(order.dateNeeded))
     : "To be confirmed";
+
+  const statusMap: Record<string, string> = {
+    new: "Received",
+    pending_payment: "Awaiting deposit payment",
+    confirmed: "Confirmed",
+    deposit_paid: "Deposit paid",
+    in_production: "In production",
+    ready: "Ready",
+    out_for_delivery: "Out for delivery",
+    completed: "Delivered",
+    cancelled: "Cancelled",
+  };
+  const statusLabel = statusMap[order.status] ?? order.status;
 
   const message = renderTemplate(templates.order_to_shop, {
     order: order.orderNumber,
@@ -79,6 +105,10 @@ async function OrderConfirmation({ tokenPromise }: { tokenPromise: Props["params
         <h1 className="mt-2 font-display text-3xl font-bold text-cocoa sm:text-4xl">
           {order.orderNumber}
         </h1>
+        <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-cocoa/15 bg-vanilla/70 px-3 py-1.5 text-sm font-medium text-cocoa">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-strawberry" aria-hidden />
+          Order status: {statusLabel}
+        </div>
         <p className="mt-3 text-ink-muted">
           Thank you, {order.customerName} — we have your order and will be in touch on
           WhatsApp.
@@ -90,6 +120,17 @@ async function OrderConfirmation({ tokenPromise }: { tokenPromise: Props["params
           Your design needs a quote before we can confirm the final price. We will send you
           the details on WhatsApp.
         </p>
+      )}
+
+      {order.depositRequired > 0 && (
+        <MpesaDepositPanel
+          token={token}
+          depositRequired={order.depositRequired}
+          depositPaid={order.amountPaid >= order.depositRequired}
+          orderStatus={order.status}
+          paymentsAvailable={isDarajaConfigured()}
+          paymentIssue={paymentIssue}
+        />
       )}
 
       <div className="mt-8 rounded-2xl border border-cocoa/10 bg-vanilla/60 p-5">

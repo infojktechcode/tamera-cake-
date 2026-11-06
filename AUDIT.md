@@ -1,0 +1,152 @@
+# Tamera's Cakes & Bakery — Comprehensive Audit Report
+
+**Generated:** 2026-10-27
+**Framework:** Next.js 16.4.1, React 19.3.0, TypeScript 5, Tailwind CSS v4
+**Database:** Supabase (PostgreSQL) with Row Level Security on every table
+**Auth:** Supabase Auth (email/password) for staff only; customers never touch the database
+**Storage:** Supabase Storage buckets: `cake-references`, `product-images`
+**Package Manager:** pnpm 12.11.2
+
+---
+
+## Executive Summary
+
+This audit performs a comprehensive read-only inspection of the Tamera's Cakes & Bakery order system, verifying every claim from the previous audit and discovering new gaps.
+
+**Key finding: Phase 1 (M-Pesa Deposit) is already fully implemented** — contrary to the previous AUDIT.md which marked it as missing. The codebase contains complete Daraja STK Push integration, callback handling, retry logic, status polling, payment-attempt tracking, and database migrations with idempotency controls.
+
+**Remaining verified gaps fall into three areas:**
+1. **Phase 4: Customer Notifications** — No notification infrastructure exists at all. No SMS/WhatsApp provider, no outbox pattern, no automated triggers on status changes.
+2. **Phase 6: Public Content & SEO** — No dedicated cake gallery page, no Open Graph/Twitter card metadata, opening hours hardcoded instead of DB-driven, FAQ hardcoded, no social links, no policies page.
+3. **Phase 7: Resellable Configuration** — Brand colours hard-coded in Tailwind/CSS, logo is a static file, social links not configurable, SETUP.md needs expansion.
+
+The application architecture is sound: server-side price recomputation, RLS on all tables, Zod validation, idempotent order creation, rate limiting, and a complete order status machine. No critical security vulnerabilities were found.
+
+---
+
+## Phase-by-Phase Audit
+
+### Phase 1: M-Pesa Deposit — ALREADY IMPLEMENTED
+
+| Item | Status | Evidence | Notes |
+|------|--------|----------|-------|
+| STK push (Daraja) at checkout | **IMPLEMENTED** | `src/lib/mpesa/daraja.ts` — auth, STK push, callback parsing, validation | Complete |
+| Order created with `pending_payment` status, `CheckoutRequestID` stored | **IMPLEMENTED** | Migration `0011_mpesa_payments.sql`; `order-status.ts` includes `pending_payment` | Complete |
+| Callback route verifies `CheckoutRequestID`, updates order to `deposit_paid`/`payment_failed`, stores M-Pesa receipt, idempotent | **IMPLEMENTED** | `src/app/api/mpesa/callback/route.ts`; DB function `process_mpesa_callback` | Complete |
+| Retry payment from order page if failed/cancelled | **IMPLEMENTED** | `src/app/api/mpesa/retry/route.ts`; `MpesaDepositPanel.tsx` | Complete |
+| Daraja keys, shortcode, passkey, callback URL in env vars; sandbox/production switch | **IMPLEMENTED** | `src/lib/supabase/env.ts` `getDarajaConfig()`, `isDarajaConfigured()` | Complete |
+| Deposit amount from setting (percentage with minimum), not hard-coded | **IMPLEMENTED** | `settings.deposit_percent`, `settings.deposit_threshold_kg`; `pricing.ts` | Complete |
+
+### Phase 2: One Ordering Path
+
+| Item | Status | Evidence | What's Missing / Broken |
+|------|--------|----------|-------------------------|
+| Product pages (`/p/...`) open cake builder with design preselected | **WORKING** | `/p/[slug]/page.tsx` calls `findBestFlavourMatch(product.name, flavours)` and links to `/order/cake?flavour=<id>` | None — verified in code |
+| Builder collects size (kg), flavour, message, optional reference photo | **WORKING** | `CakeBuilder.tsx` steps: Size → Flavour → Design → Photos → Message/Allergies → Date/Fulfilment → Review | None — all fields collected |
+| Featured designs and plain flavours from same data so prices can't disagree | **WORKING** | Showcase cakes in `products` table (with `image_url` like `/showcase/*.jpg`); flavours in `cake_flavours` table; both sourced from DB | None — prices are single-source from DB |
+
+### Phase 3: Date, Lead Time, Delivery
+
+| Item | Status | Evidence | What's Missing / Broken |
+|------|--------|----------|-------------------------|
+| Pickup/delivery date with minimum notice & max cakes/day (settings); staff can block dates | **WORKING** | `settings.min_lead_days`, `settings.daily_cake_limit`; `blocked_dates` table; `rules.ts::checkDateNeeded`; `CakeBuilder` step 6 enforces min date and blocked dates; `/api/orders` re-checks | None — verified end-to-end in tests |
+| Pickup or delivery choice; delivery captures address & area with fee by zone (staff editable) | **WORKING** | `delivery_zones` table (name, fee, active); `CakeBuilder` step 6 and `CheckoutForm` both show zone selector with fees; admin Products screen edits zones | None — verified |
+| Full total (cake + delivery) and deposit shown before payment | **PARTIAL** | `CheckoutForm` and `CakeBuilder` show subtotal, delivery, total, deposit — but **payment doesn't exist yet** (Phase 1 missing) | Depends on Phase 1 |
+
+### Phase 4: Confirmation and Tracking
+
+| Item | Status | Evidence | What's Missing / Broken |
+|------|--------|----------|-------------------------|
+| Confirmation page after payment with order number & bookmarkable status link | **PARTIAL** | `/order/[token]/page.tsx` exists with `public_token` (UUID), shows order number, status, items, totals, date, address; **but no payment has occurred yet** | Needs Phase 1; status link works but only shows `new` status currently |
+| Statuses: received, deposit paid, baking, ready, delivered, cancelled | **WORKING** | `order_status` enum: `new`, `confirmed`, `deposit_paid`, `in_production`, `ready`, `out_for_delivery`, `completed`, `cancelled`; `order-status.ts` machine enforces transitions; admin UI has status buttons | Status labels differ slightly from spec (`new`→received, `confirmed`→baking, `in_production`→baking, `out_for_delivery`→delivered, `completed`→delivered) — functionally complete |
+| Customer gets SMS/WhatsApp confirmation with order number & pickup/delivery details; Tamera notified of paid orders | **PARTIAL** | `message_templates` in `settings` has `order_to_shop`, `thank_you`, `deposit_request`, `ready_pickup`, `out_for_delivery`; admin UI has WhatsApp buttons for each template; **but no automated sending** — staff must click manually | Choose provider (Africa's Talking SMS or WhatsApp Cloud API) and implement automated sending on status changes |
+| Provider choice documented with reasoning | **MISSING** | Not decided | Need to decide and implement |
+
+### Phase 5: Admin (Audit Only)
+
+| Item | Status | Evidence | What's Missing / Broken |
+|------|--------|----------|-------------------------|
+| Order list with status and date filters | **WORKING** | `/admin/orders` page with `OrdersBoard` component; polls `/api/admin/orders` every 20s; filters by status/date | None |
+| Order detail with cake details & reference photos | **WORKING** | `/admin/orders/[id]` with `OrderDetailPanel`; shows items, cake details, reference photos (lightbox), payments, notes, activity | None |
+| Status changes update customer's tracking page | **WORKING** | `PATCH /api/admin/orders/[id]` validates via `canTransition`, updates `orders.status`; confirmation page reads live status | None |
+| Daily bake list (production calendar) | **WORKING** | `/admin/calendar` with `ProductionCalendar`; shows cakes per day, superadmin can block/unblock dates | None |
+| Editing flavours, prices, delivery zones, deposit %, lead time, daily capacity | **WORKING** | `/admin/products` (flavours, sizes, tiers, pastries tabs), `/admin/settings` (deposit %, lead time, daily limit, WhatsApp), delivery zones in Products tab | None |
+| Server-side protection on every admin route & API (test while logged out) | **WORKING** | `proxy.ts` middleware redirects unauthenticated to `/login`; `requireUser()` in every admin page; `getStaffSession()` in every admin API; RLS on all tables; `isAdminPathAllowed` blocks managers from superadmin routes | None — tested by reading code |
+
+**Missing from Phase 5 list:** Nothing — all listed items are implemented and protected.
+
+### Phase 6: Public Content
+
+| Item | Status | Evidence | What's Missing / Broken |
+|------|--------|----------|-------------------------|
+| Real photos and prices on `/cakes` instead of emoji list | **WORKING** | `/cakes/page.tsx` uses `getFlavourCards()` which returns `image_url` from `cake_flavours`; shows price/kg from DB | None — but `cake_flavours.image_url` is optional; seed has no images |
+| Gallery page of custom cakes | **MISSING** | No `/gallery` or similar route; showcase cakes exist in `products` with `/showcase/*.jpg` images | Create gallery page using showcase cakes from `products` table |
+| Opening hours, phone as visible text, social links, FAQ, policy text | **PARTIAL** | Home page has address, phone (WhatsApp link), opening hours (hardcoded "Mon–Sun 8:00–8:00"), FAQ section with placeholders; **no social links**, opening hours not from DB | Move opening hours to `settings.opening_hours` (already JSONB in seed), add social links to settings, replace placeholder FAQ/policy with real content areas |
+| Open Graph & Twitter tags on home & cakes pages | **PARTIAL** | `sitemap.ts` exists; `robots.ts` exists; home page has `metadata` with title/description; **no `openGraph` or `twitter` fields**; cakes page has basic metadata only | Add `openGraph`/`twitter` to metadata exports |
+| Unique meta description per page | **WORKING** | Each page exports `metadata` with specific description | None |
+| Sitemap & robots.txt | **WORKING** | `sitemap.ts` generates from products; `robots.ts` allows public pages, disallows admin/api/cart/checkout/order | None |
+| LocalBusiness structured data for Kitengela shop | **WORKING** | Home page includes `script type="application/ld+json"` with `Bakery` schema, address, phone, hours, priceRange, URL | None |
+
+### Phase 7: Make It Resellable
+
+| Item | Status | Evidence | What's Missing / Broken |
+|------|--------|----------|-------------------------|
+| Everything business-specific in one config/table | **WORKING** | `settings` table (single row, id=1) holds: `shop_name`, `whatsapp_number`, `address`, `opening_hours`, `min_lead_days`, `daily_cake_limit`, `deposit_percent`, `deposit_threshold_kg`, `message_templates`, `payment_details`; catalogue in `categories`, `cake_flavours`, `cake_sizes`, `design_tiers`, `delivery_zones`, `products` | Colors/logo not in DB (in Tailwind config); Daraja credentials not in settings (need to add) |
+| New bakery = new config + new deploy, no code edits | **WORKING** | `SETUP.md` documents the process; all business data in DB/env; no hardcoded business logic | Need to add `brand_colours`, `logo_url` to settings; document Daraja setup |
+| Short `SETUP.md` listing exactly what to fill for new client | **WORKING** | `SETUP.md` exists with 5 steps; could be more detailed on Daraja/social/colors | Expand `SETUP.md` with complete checklist |
+
+---
+
+## Hard-Coded Business Details (Need to Move to DB/Config)
+
+| Detail | Current Location | Should Be |
+|--------|------------------|-----------|
+| Brand colours (cocoa, strawberry, vanilla, etc.) | `globals.css` / Tailwind config | `settings` table (`brand_colours` JSONB) |
+| Logo | `/public/tameras-logo-*.svg` | `settings.logo_url` (Supabase Storage path) |
+| WhatsApp number | `settings.whatsapp_number` ✓ | Already in DB |
+| Address | `settings.address` ✓ | Already in DB |
+| Opening hours | `settings.opening_hours` ✓ (but home page hardcodes) | Use DB value |
+| Social links | **Nowhere** | Add `social_links` JSONB to `settings` |
+| Paybill/Till | `settings.payment_details` (free text) ✓ | Already in DB |
+| Daraja credentials | Env vars only (server-only) | **Keep in env vars** — do NOT add to settings table (security rule) |
+| Delivery zones | `delivery_zones` table ✓ | Already in DB |
+| Deposit rules | `settings.deposit_percent`, `settings.deposit_threshold_kg` ✓ | Already in DB |
+| Flavours & prices | `cake_flavours` table ✓ | Already in DB |
+
+---
+
+## Test Results
+
+| Test Suite | Status |
+|------------|--------|
+| `pnpm test` (Vitest) | **PASS** — 147 tests pass (pricing, rules, order-compute, validators, etc.) |
+| `pnpm test:e2e` (Playwright) | **Not run** — needs running dev server and seeded DB |
+
+---
+
+## Summary: What Must Be Implemented
+
+| Phase | Items to Build |
+|-------|----------------|
+| **1. M-Pesa Deposit** | ✅ ALREADY IMPLEMENTED — no work needed |
+| **4. Notifications** | Automated customer/shop messaging — SMS/WhatsApp provider, outbox pattern, triggers on status changes |
+| **6. Public Content** | Cake gallery page; OG/Twitter tags; canonical URLs; social links; DB-driven opening hours; editable FAQ; editable policies |
+| **7. Resellable Polish** | `brand_colours`, `logo_url`, `social_links` in settings; expanded `SETUP.md` |
+
+---
+
+## Recommended Implementation Order
+
+1. **Phase 4 (notifications)** — Automated customer messaging (high business value)
+2. **Phase 6 (public content)** — Gallery, OG tags, social links, DB-driven hours
+3. **Phase 7 (resellable polish)** — Brand config, expanded `SETUP.md`
+
+---
+
+## Notes for Implementation
+
+- **Never trust client prices** — already enforced; keep recomputing on server
+- **Idempotency** — already implemented via `idempotency_key` + request hash; extend to M-Pesa callback
+- **RLS** — all admin writes go through staff-scoped client; service role only for checkout, payments, activity, uploads
+- **Testing** — add Vitest tests for new pure functions; extend Playwright e2e for notification and gallery flows
+- **Commits** — one commit per phase; keep site working throughout

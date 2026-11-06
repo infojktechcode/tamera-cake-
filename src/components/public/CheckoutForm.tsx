@@ -195,6 +195,7 @@ export function CheckoutForm({
         ok: boolean;
         confirmation_token?: string;
         error?: string;
+        payment?: { required: boolean; initiated: boolean; message?: string };
       };
       if (!res.ok || !json.ok || !json.confirmation_token) {
         setError(json.error ?? "We could not place your order. Please try again.");
@@ -202,7 +203,9 @@ export function CheckoutForm({
       }
       sessionStorage.removeItem(CHECKOUT_IDEMPOTENCY_STORAGE_KEY);
       clear();
-      router.push(`/order/${json.confirmation_token}`);
+      const base = `/order/${json.confirmation_token}`;
+      const redirectUrl = json.payment?.initiated === false ? `${base}?paymentIssue=1` : base;
+      router.push(redirectUrl);
     } catch {
       setError("We could not safely complete checkout. Retrying this order will not create a duplicate.");
     } finally {

@@ -5,6 +5,7 @@ import { canTransition, isOrderStatus } from "@/lib/order-status";
 import { checkOrderDateRules } from "@/lib/admin-date-check";
 import { getStaffSession } from "@/lib/session";
 import { createServiceClient } from "@/lib/supabase/service";
+import { notifyOnStatusChange } from "@/lib/notifications/triggers";
 
 /**
  * PATCH /api/admin/orders/[id] — move an order through the status machine.
@@ -51,7 +52,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .select("id, order_number, status, fulfilment, date_needed")
+    .select("id, order_number, status, fulfilment, date_needed, customers(name, phone)")
     .eq("id", id)
     .maybeSingle();
 
@@ -110,6 +111,23 @@ export async function PATCH(req: Request, { params }: Params) {
     });
   } catch (e) {
     console.error(`activity_log (status change): ${(e as Error).message}`);
+  }
+
+  // Customer notification on status change (best effort — failures don't block
+  // the status transition). Phone comes from the customer row linked to the order.
+  const customer = Array.isArray(order?.customers)
+    ? order.customers[0]
+    : order?.customers;
+  const toPhone = customer?.phone;
+  if (toPhone) {
+    void notifyOnStatusChange({
+      orderId: id,
+      newStatus: nextStatus,
+      channel: "sms",
+      toPhone,
+    }).catch((e) => {
+      console.error(`notification (status change): ${(e as Error).message}`);
+    });
   }
 
   return NextResponse.json({ ok: true, status: nextStatus });

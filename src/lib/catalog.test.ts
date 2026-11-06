@@ -9,37 +9,73 @@ vi.mock("next/cache", () => ({
 // Supabase query builder is a thenable — it chains but also resolves when awaited.
 interface MockChain {
   select: ReturnType<typeof vi.fn>;
+  eq: ReturnType<typeof vi.fn>;
+  like: ReturnType<typeof vi.fn>;
+  order: ReturnType<typeof vi.fn>;
+  limit: ReturnType<typeof vi.fn>;
   single: ReturnType<typeof vi.fn>;
+  then: (resolve: (val: unknown) => void) => void;
   _result: { data: unknown; error: unknown };
-  _calls: { select: unknown[][] };
+  _calls: {
+    select: unknown[][];
+    eq: unknown[][];
+    like: unknown[][];
+    order: unknown[][];
+    limit: unknown[][];
+  };
 }
 
 function makeChain(): MockChain {
-  const calls = { select: [] as unknown[][] };
+  const calls = {
+    select: [] as unknown[][],
+    eq: [] as unknown[][],
+    like: [] as unknown[][],
+    order: [] as unknown[][],
+    limit: [] as unknown[][],
+  };
   const chain: MockChain = {
     select: vi.fn((...args: unknown[]) => {
       calls.select.push(args);
       return chain;
     }),
+    eq: vi.fn((...args: unknown[]) => {
+      calls.eq.push(args);
+      return chain;
+    }),
+    like: vi.fn((...args: unknown[]) => {
+      calls.like.push(args);
+      return chain;
+    }),
+    order: vi.fn((...args: unknown[]) => {
+      calls.order.push(args);
+      return chain;
+    }),
+    limit: vi.fn((...args: unknown[]) => {
+      calls.limit.push(args);
+      return chain;
+    }),
     single: vi.fn(() => Promise.resolve(chain._result)),
-    _result: { data: {}, error: null },
+    then: (resolve) => resolve(chain._result),
+    _result: { data: [], error: null },
     _calls: calls,
   };
   return chain;
 }
 
 const settingsChain = makeChain();
+const productsChain = makeChain();
 
 vi.mock("./supabase/public", () => ({
   getPublicClient: () => ({
     from: (table: string) => {
       if (table === "settings") return settingsChain;
+      if (table === "products") return productsChain;
       throw new Error(`unexpected table ${table}`);
     },
   }),
 }));
 
-const { getPublicSettings } = await import("./catalog");
+const { getPublicSettings, getGalleryItems } = await import("./catalog");
 
 /** Reset the mock chain between tests. */
 function primeSettings(data: unknown) {
@@ -166,5 +202,69 @@ describe("getPublicSettings", () => {
     settingsChain._result = { data: null, error: { message: "DB down" } };
     settingsChain.select.mockClear().mockReturnThis();
     await expect(getPublicSettings()).rejects.toThrow("DB down");
+  });
+});
+
+describe("getGalleryItems", () => {
+  function primeProducts(data: unknown) {
+    productsChain._result = { data, error: null };
+    for (const fn of [
+      productsChain.select,
+      productsChain.eq,
+      productsChain.like,
+      productsChain.order,
+      productsChain.limit,
+    ]) {
+      fn.mockClear().mockReturnThis();
+    }
+  }
+
+  it("queries available cake products with showcase images", async () => {
+    primeProducts([]);
+    await getGalleryItems();
+
+    const selectArg = productsChain.select.mock.calls[0]?.[0] as string;
+    expect(selectArg).toContain("slug");
+    expect(selectArg).toContain("image_url");
+    expect(selectArg).toContain("price");
+    expect(productsChain.eq.mock.calls).toEqual([
+      ["categories.kind", "cake"],
+      ["categories.active", true],
+      ["available", true],
+    ]);
+    expect(productsChain.like.mock.calls[0]).toEqual(["image_url", "/showcase/*.jpg"]);
+  });
+
+  it("returns gallery items", async () => {
+    primeProducts([
+      {
+        slug: "black-forest",
+        name: "Black Forest",
+        description: "Rich chocolate",
+        image_url: "/showcase/black-forest.jpg",
+        price: 4500,
+      },
+    ]);
+
+    const items = await getGalleryItems();
+    expect(items).toEqual([
+      {
+        slug: "black-forest",
+        name: "Black Forest",
+        description: "Rich chocolate",
+        image_url: "/showcase/black-forest.jpg",
+        price: 4500,
+      },
+    ]);
+  });
+
+  it("returns an empty list when there are no showcase products", async () => {
+    primeProducts([]);
+    expect(await getGalleryItems()).toEqual([]);
+  });
+
+  it("throws on supabase error", async () => {
+    productsChain._result = { data: null, error: { message: "DB down" } };
+    await expect(getGalleryItems()).rejects.toThrow("DB down");
   });
 });

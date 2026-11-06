@@ -90,6 +90,32 @@ export async function getFeaturedCakes(limit = 4): Promise<ShowcaseCake[]> {
   }));
 }
 
+/**
+ * Gallery items: every available showcase cake, reusing the same product
+ * query pattern as `getFeaturedCakes` (no separate gallery table). Cards
+ * link to the existing `/p/[slug]` page — never a duplicate ordering path.
+ */
+export async function getGalleryItems(): Promise<ShowcaseCake[]> {
+  cacheTag("catalog");
+  cacheLife("hours");
+  const { data, error } = await getPublicClient()
+    .from("products")
+    .select("slug,name,description,image_url,price,category:categories!inner(kind,active)")
+    .eq("categories.kind", "cake")
+    .eq("categories.active", true)
+    .eq("available", true)
+    .like("image_url", "/showcase/*.jpg")
+    .order("sort_order", { ascending: true });
+  if (error) throw new Error(`getGalleryItems: ${error.message}`);
+  return (data ?? []).map((row) => ({
+    slug: row.slug,
+    name: row.name,
+    description: row.description,
+    image_url: row.image_url,
+    price: row.price,
+  }));
+}
+
 export async function getFlavourCards(): Promise<FlavourCard[]> {
   cacheTag("catalog");
   cacheLife("hours");

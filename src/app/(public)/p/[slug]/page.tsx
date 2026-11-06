@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FadeUp } from "@/components/motion";
 import { IMAGE_BLUR_DATA_URL } from "@/lib/blur";
-import { getProductBySlug, getProductSlugs } from "@/lib/catalog";
+import { findBestFlavourMatch, getFlavourCards, getProductBySlug, getProductSlugs } from "@/lib/catalog";
 import { formatKES } from "@/lib/format";
 import { buildShareMetadata } from "@/lib/og";
 import { getSiteUrl } from "@/lib/supabase/env";
@@ -33,6 +33,9 @@ export default async function SharePage({ params }: Props) {
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
+  const flavours = await getFlavourCards();
+  const builderFlavourId = findBestFlavourMatch(product.name, flavours);
+  const builderHref = builderFlavourId ? `/order/cake?flavour=${encodeURIComponent(builderFlavourId)}` : "/order/cake";
   const message = `Hi Tamera! I'd like to order ${product.name} — ${formatKES(product.price)}.`;
   const backHref = product.category_kind === "cake" ? "/cakes" : "/pastries";
   const backLabel = product.category_kind === "cake" ? "Back to cakes" : "Back to pastries";
@@ -73,13 +76,19 @@ export default async function SharePage({ params }: Props) {
         </p>
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          <Link
+            href={builderHref}
+            className="inline-flex min-h-12 items-center justify-center rounded-full bg-strawberry px-8 py-3 font-semibold text-white transition hover:bg-strawberry-deep"
+          >
+            {builderFlavourId ? "Build this cake" : "Start a custom order"}
+          </Link>
           <a
             href={waHref(getShopWhatsapp(), message)}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#25d366] px-8 py-3 font-semibold text-cocoa transition hover:opacity-90"
+            className="inline-flex min-h-12 items-center justify-center rounded-full border border-cocoa/20 px-8 py-3 font-semibold text-cocoa transition hover:border-cocoa/40"
           >
-            Order on WhatsApp
+            Ask on WhatsApp
           </a>
           <Link
             href={backHref}
