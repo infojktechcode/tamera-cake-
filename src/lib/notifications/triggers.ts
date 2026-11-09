@@ -15,7 +15,7 @@ const TEMPLATE_FOR_STATUS: Record<string, string> = {
   ready: "ready_pickup",
   out_for_delivery: "out_for_delivery",
   completed: "thank_you",
-  cancelled: "product_update",
+  cancelled: "order_cancelled",
 };
 
 /**
@@ -70,7 +70,7 @@ function notificationMessageFor(template: string, status: string): string {
     order_to_shop: `Your order is now in production (status: ${status}).`,
     ready_pickup: `Your order is ready! Status: ${status}.`,
     out_for_delivery: `Your order is out for delivery (status: ${status}).`,
-    product_update: `Your order has been cancelled (status: ${status}).`,
+    order_cancelled: `Your order has been cancelled (status: ${status}).`,
   };
   return templates[template] ?? `Your order status is now ${status}.`;
 }
