@@ -15,6 +15,9 @@ const eslintConfig = defineConfig([
     ".worktrees/**",
     // Tracked task-generation artifact, not application source.
     "phase3-complete.js",
+    // Installed skill packs (not project code) — suppress their lint noise.
+    ".claude/skills/**",
+    ".agents/skills/**",
   ]),
 ]);
 
