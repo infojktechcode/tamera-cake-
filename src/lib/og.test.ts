@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Metadata } from "next";
-import { findBestFlavourMatch } from "./catalog";
+import { findBestFlavourMatch } from "./flavour-match";
 import { buildPageMetadata, buildShareMetadata } from "./og";
 
 // Next's OpenGraph type is a discriminated union that TS can't index loosely —

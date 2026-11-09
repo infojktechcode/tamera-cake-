@@ -128,42 +128,6 @@ export async function getFlavourCards(): Promise<FlavourCard[]> {
   return (data ?? []) as FlavourCard[];
 }
 
-export function findBestFlavourMatch(
-  productName: string,
-  flavours: Array<Pick<FlavourCard, "id" | "name">>,
-): string | null {
-  const normalize = (text: string) =>
-    text
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, " ")
-      .trim();
-
-  const target = normalize(productName);
-  if (!target) return null;
-
-  let bestId: string | null = null;
-  let bestScore = -1;
-
-  for (const flavour of flavours) {
-    const name = normalize(flavour.name);
-    if (!name) continue;
-
-    if (name === target) return flavour.id;
-
-    const score =
-      target.includes(name) || name.includes(target)
-        ? 3
-        : name.split(" ").filter(Boolean).filter((word) => target.includes(word)).length;
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestId = flavour.id;
-    }
-  }
-
-  return bestScore > 0 ? bestId : null;
-}
-
 /** Active pastry category names, sorted. Chips prepend "All" in the component. */
 export async function getPastryCategories(): Promise<string[]> {
   cacheTag("catalog");
