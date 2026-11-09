@@ -24,6 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
       "Order cakes and pastries in Kitengela, Kenya. Custom celebration cakes, same-day pastries, pickup and delivery options, and a simple deposit-based ordering flow.",
     siteUrl: getSiteUrl(),
     path: "/",
+    image: "/showcase/cakes/01-classic-black-forest.jpg",
   });
 }
 

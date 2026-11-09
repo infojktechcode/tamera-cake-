@@ -15,6 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
       "See the celebration cakes we've baked in Kitengela, Kenya — birthdays, weddings and everyday treats, all orderable on WhatsApp.",
     siteUrl: getSiteUrl(),
     path: "/gallery",
+    image: "/showcase/cakes/01-classic-black-forest.jpg",
   });
 }
 

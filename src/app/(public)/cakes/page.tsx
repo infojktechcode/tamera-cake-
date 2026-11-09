@@ -16,6 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
       "Browse custom and celebration cakes in Kitengela, Kenya. Choose a flavour, select a size, and start your order with a custom build.",
     siteUrl: getSiteUrl(),
     path: "/cakes",
+    image: "/showcase/cakes/01-classic-black-forest.jpg",
   });
 }
 

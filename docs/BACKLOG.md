@@ -42,7 +42,7 @@
 | B-12 | **E2E test isolation** | L4 | Playwright tests write real data to production Supabase. Need disposable staging project + seeded DB + CI pipeline. | M |
 | B-13 | **Upload rate limiter: shared store** | docs/AUDIT.md §5 | Current in-memory limiter resets per serverless instance. Move to Vercel KV / Upstash Redis / Supabase Edge Function. | S | `security(upload): implement distributed upstash rate limiting` | 🟢 |
 | B-14 | **Canonical URLs + UUID↔slug linking** | docs/AUDIT.md §4 | `/p/[slug]` needs `<link rel="canonical">`; resolve UUID vs named-slug for share links. | S |
-| B-15 | **Open Graph / Twitter cards on all public pages** | Phase 6 | Home, `/cakes`, `/p/[slug]`, `/pastries` — add `openGraph` + `twitter` metadata exports. | S |
+| B-15 | **Open Graph / Twitter cards on all public pages** | Phase 6 | Home, `/cakes`, `/p/[slug]`, `/pastries` — add `openGraph` + `twitter` metadata exports. | S | `seo(og): add open graph and twitter metadata to all public pages` | 🟢 |
 | B-16 | **Cake gallery page** | Phase 6 | New `/gallery` route using showcase cakes from `products` table (`/showcase/*.jpg`). | M |
 | B-17 | **DB-driven opening hours on home page** | Phase 6 | Replace hardcoded "Mon–Sun 8:00–8:00" with `settings.opening_hours` JSON. | S |
 | B-18 | **Editable FAQ & policies** | Phase 6 | Admin UI for `settings.faq_items`, `delivery_policy`, `payment_policy`, `cancellation_policy`. | M |
