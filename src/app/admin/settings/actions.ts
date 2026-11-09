@@ -70,6 +70,7 @@ export async function updateSettings(formData: FormData) {
     min_lead_days: z.coerce.number().int().min(0).max(90).optional(),
     sms_enabled: z.boolean().optional(),
     sms_provider: z.string().min(1).optional(),
+    message_templates: z.string().optional(),
     social_links: z.string().optional(),
     faq_items: z.string().optional(),
     delivery_policy: z.string().optional(),
@@ -84,6 +85,7 @@ export async function updateSettings(formData: FormData) {
     min_lead_days: numberField(formData, "min_lead_days"),
     sms_enabled: checkboxField(formData, "sms_enabled"),
     sms_provider: field(formData, "sms_provider"),
+    message_templates: field(formData, "message_templates"),
     social_links: field(formData, "social_links"),
     faq_items: field(formData, "faq_items"),
     delivery_policy: field(formData, "delivery_policy"),
@@ -100,7 +102,7 @@ export async function updateSettings(formData: FormData) {
   const updateData: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(parsed.data)) {
     if (value === undefined || value === null) continue;
-    if (["social_links", "faq_items", "brand_colours"].includes(key)) {
+    if (["social_links", "faq_items", "brand_colours", "message_templates"].includes(key)) {
       try {
         updateData[key] = JSON.parse(value as string);
       } catch {

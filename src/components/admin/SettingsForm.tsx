@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -14,6 +15,9 @@ interface SettingsFormProps {
     daily_cake_limit: number;
     deposit_percent: number;
     min_lead_days: number;
+    sms_enabled: boolean;
+    sms_provider: string;
+    message_templates: Record<string, string>;
   };
 }
 
@@ -81,6 +85,54 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
             />
           </div>
         </div>
+
+        <div className="border-t border-cocoa/10 pt-6 space-y-6">
+          <h2 className="text-lg font-semibold">SMS Notifications</h2>
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3">
+              <input
+                type="hidden"
+                name="sms_enabled"
+                value="off"
+              />
+              <input
+                type="checkbox"
+                name="sms_enabled"
+                value="on"
+                id="sms_enabled"
+                defaultChecked={initialSettings.sms_enabled}
+                className="h-4 w-4 rounded border-cocoa/30 text-primary focus:ring-primary"
+              />
+              <Label htmlFor="sms_enabled" className="cursor-pointer mb-0">
+                Enable SMS notifications
+              </Label>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sms_provider">SMS Provider</Label>
+              <select
+                name="sms_provider"
+                id="sms_provider"
+                defaultValue={initialSettings.sms_provider}
+                className="w-full rounded-md border border-cocoa/20 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="mock">Mock (development)</option>
+                <option value="africas_talking">Africa&apos;s Talking</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="message_templates">Message Templates (JSON)</Label>
+              <Textarea
+                name="message_templates"
+                id="message_templates"
+                defaultValue={JSON.stringify(initialSettings.message_templates, null, 2)}
+                rows={8}
+                className="font-mono text-sm"
+                placeholder='{"deposit_request": "...", "thank_you": "...", "order_to_shop": "...", "ready_pickup": "...", "out_for_delivery": "...", "order_cancelled": "..."}'
+              />
+            </div>
+          </div>
+        </div>
+
         <div className="flex justify-end">
           <Button type="submit" disabled={loading}>
             {loading ? "Saving..." : "Save All Settings"}

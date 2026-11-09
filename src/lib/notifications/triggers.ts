@@ -6,6 +6,7 @@
  */
 
 import { notifyOrderStatusChange } from "./service";
+import { createServiceClient } from "@/lib/supabase/service";
 
 /** Template names for each status transition. */
 const TEMPLATE_FOR_STATUS: Record<string, string> = {
@@ -17,6 +18,41 @@ const TEMPLATE_FOR_STATUS: Record<string, string> = {
   completed: "thank_you",
   cancelled: "order_cancelled",
 };
+
+/** Default fallback templates (used when settings.message_templates is empty/missing). */
+const DEFAULT_TEMPLATES: Record<string, string> = {
+  deposit_request: `Your order deposit is due. Please complete the M-Pesa payment to confirm your cake order (status: {status}).`,
+  thank_you: `Thank you! Your order status has been updated to {status}.`,
+  order_to_shop: `Your order is now in production (status: {status}).`,
+  ready_pickup: `Your order is ready! Status: {status}.`,
+  out_for_delivery: `Your order is out for delivery (status: {status}).`,
+  order_cancelled: `Your order has been cancelled (status: {status}).`,
+};
+
+/** Load message templates from settings (with defaults fallback). */
+async function loadMessageTemplates(): Promise<Record<string, string>> {
+  try {
+    const service = createServiceClient();
+    const { data: settings, error } = await service
+      .from("settings")
+      .select("message_templates")
+      .single();
+
+    if (!error && settings?.message_templates) {
+      const custom = settings.message_templates as Record<string, string>;
+      return { ...DEFAULT_TEMPLATES, ...custom };
+    }
+  } catch {
+    // ignore - use defaults
+  }
+  return DEFAULT_TEMPLATES;
+}
+
+/** Build a customer-facing message for a notification template. */
+function buildMessage(template: string, status: string, templates: Record<string, string>): string {
+  const raw = templates[template] ?? `Your order status is now {status}.`;
+  return raw.replace(/\{status\}/g, status);
+}
 
 /**
  * Notify the customer when an order status changes.
@@ -39,7 +75,8 @@ export async function notifyOnStatusChange(params: {
     return { ok: true };
   }
 
-  const message = notificationMessageFor(template, params.newStatus);
+  const templates = await loadMessageTemplates();
+  const message = buildMessage(template, params.newStatus, templates);
 
   try {
     const result = await notifyOrderStatusChange({
@@ -57,20 +94,4 @@ export async function notifyOnStatusChange(params: {
       error: (error as Error).message,
     };
   }
-}
-
-/**
- * Build a customer-facing message for a notification template.
- * These are templates — the admin can customize them via settings.
- */
-function notificationMessageFor(template: string, status: string): string {
-  const templates: Record<string, string> = {
-    deposit_request: `Your order deposit is due. Please complete the M-Pesa payment to confirm your cake order (status: ${status}).`,
-    thank_you: `Thank you! Your order status has been updated to ${status}.`,
-    order_to_shop: `Your order is now in production (status: ${status}).`,
-    ready_pickup: `Your order is ready! Status: ${status}.`,
-    out_for_delivery: `Your order is out for delivery (status: ${status}).`,
-    order_cancelled: `Your order has been cancelled (status: ${status}).`,
-  };
-  return templates[template] ?? `Your order status is now ${status}.`;
 }
