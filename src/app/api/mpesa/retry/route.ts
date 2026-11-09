@@ -17,7 +17,8 @@ const retrySchema = z.object({
 });
 
 export async function POST(req: Request): Promise<NextResponse> {
-  const limit = mpesaRetryLimiter.check(req.headers);
+  const limitResult = mpesaRetryLimiter.check(req.headers);
+  const limit = limitResult instanceof Promise ? await limitResult : limitResult;
   if (!limit.ok) {
     return NextResponse.json(
       { ok: false as const, error: "Too many attempts. Please wait a minute and try again." },

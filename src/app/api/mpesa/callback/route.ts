@@ -43,7 +43,8 @@ function redactCallbackPayload(payload: unknown): unknown {
 }
 
 export async function POST(req: Request): Promise<NextResponse> {
-  const limit = mpesaCallbackLimiter.check(req.headers);
+  const limitResult = mpesaCallbackLimiter.check(req.headers);
+  const limit = limitResult instanceof Promise ? await limitResult : limitResult;
   if (!limit.ok) {
     return NextResponse.json(
       { ResultCode: 1, ResultDesc: "Too many requests" },

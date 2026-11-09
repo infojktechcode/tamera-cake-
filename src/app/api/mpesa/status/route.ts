@@ -15,7 +15,8 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function GET(req: Request): Promise<NextResponse> {
-  const limit = mpesaStatusLimiter.check(req.headers);
+  const limitResult = mpesaStatusLimiter.check(req.headers);
+  const limit = limitResult instanceof Promise ? await limitResult : limitResult;
   if (!limit.ok) {
     return NextResponse.json(
       { ok: false as const, error: "Too many requests." },

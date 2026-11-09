@@ -40,7 +40,7 @@
 |---|---|---|---|---|
 | B-11 | **Fix `CakeBuilder` integration test flake** | L3 | Intermittent timeout on drag-drop assertions under JSDOM. Add `await waitFor` / increase timeout or mock drag events deterministically. | S |
 | B-12 | **E2E test isolation** | L4 | Playwright tests write real data to production Supabase. Need disposable staging project + seeded DB + CI pipeline. | M |
-| B-13 | **Upload rate limiter: shared store** | docs/AUDIT.md §5 | Current in-memory limiter resets per serverless instance. Move to Vercel KV / Upstash Redis / Supabase Edge Function. | S |
+| B-13 | **Upload rate limiter: shared store** | docs/AUDIT.md §5 | Current in-memory limiter resets per serverless instance. Move to Vercel KV / Upstash Redis / Supabase Edge Function. | S | `security(upload): implement distributed upstash rate limiting` | 🟢 |
 | B-14 | **Canonical URLs + UUID↔slug linking** | docs/AUDIT.md §4 | `/p/[slug]` needs `<link rel="canonical">`; resolve UUID vs named-slug for share links. | S |
 | B-15 | **Open Graph / Twitter cards on all public pages** | Phase 6 | Home, `/cakes`, `/p/[slug]`, `/pastries` — add `openGraph` + `twitter` metadata exports. | S |
 | B-16 | **Cake gallery page** | Phase 6 | New `/gallery` route using showcase cakes from `products` table (`/showcase/*.jpg`). | M |
