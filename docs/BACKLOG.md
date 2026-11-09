@@ -49,7 +49,7 @@
 | B-19 | **Brand colours + logo in settings** | Phase 7 | Admin colour picker + logo upload → `settings.brand_colours` / `logo_url`; apply via CSS vars. | M |
 | B-20 | **Daraja credentials in SETUP.md** | Phase 7 | Document sandbox/production switch, shortcode, passkey, callback URL. | S |
 | B-21 | **Unit tests for `permissions.ts`** | docs/AUDIT.md §5 | Test `can()`, `isAdminPathAllowed()` including `sales`/`share` edge cases. | S |
-| B-22 | **Vitest config at project root** | docs/AUDIT.md §5 | Isolate test runner from ESLint defaults; stable CI. | S |
+| B-22 | **Vitest config at project root** | docs/AUDIT.md §5 | Isolate test runner from ESLint defaults; stable CI. | S | `chore(test): stabilize root vitest configuration` | 🟢 |
 
 ---
 
