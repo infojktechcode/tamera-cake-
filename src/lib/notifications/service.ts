@@ -15,6 +15,9 @@ import type { NotificationProvider } from "./providers/types";
 import { africastalkingProvider } from "./providers/africastalking";
 import { mockProvider } from "./providers/mock";
 
+/** Maximum age of failed notifications to retry (24 hours). */
+const MAX_FAILED_AGE_MS = 24 * 60 * 60 * 1000;
+
 /** Notification channels. */
 export type NotificationChannel = "sms" | "whatsapp";
 
@@ -187,4 +190,106 @@ export async function notifyOrderStatusChange(params: {
   }
 
   return sent;
+}
+
+/**
+ * Retry failed notifications that haven't exceeded max_attempts.
+ *
+ * Designed to be called from a scheduled cron (e.g. every 5 minutes via vercel.json).
+ * Processes up to `batchSize` notifications per run to avoid long-running invocations.
+ *
+ * @returns { processed: number, succeeded: number, failed: number }
+ */
+export async function retryFailedNotifications(batchSize = 50): Promise<{
+  processed: number;
+  succeeded: number;
+  failed: number;
+}> {
+  const service = createServiceClient();
+  const now = Date.now();
+  const cutoff = new Date(now - MAX_FAILED_AGE_MS).toISOString();
+
+  // Fetch failed notifications eligible for retry (default max_attempts = 3)
+  const { data: failedRows, error: fetchError } = await service
+    .from("notifications_outbox")
+    .select(
+      "id, channel, to_phone, message, attempts, max_attempts, error_message, created_at",
+    )
+    .eq("status", "failed")
+    .lt("attempts", 3)
+    .gte("created_at", cutoff)
+    .order("created_at", { ascending: true })
+    .limit(batchSize);
+
+  if (fetchError) {
+    throw new Error(`Failed to fetch failed notifications: ${fetchError.message}`);
+  }
+
+  if (!failedRows || failedRows.length === 0) {
+    return { processed: 0, succeeded: 0, failed: 0 };
+  }
+
+  // Load current provider settings
+  const { data: settings, error: settingsError } = await service
+    .from("settings")
+    .select("sms_enabled, sms_provider")
+    .single();
+
+  if (settingsError || !settings) {
+    throw new Error("Notification settings not configured");
+  }
+
+  const smsEnabled = (settings as { sms_enabled?: boolean }).sms_enabled ?? false;
+  if (!smsEnabled) {
+    throw new Error("SMS notifications are disabled");
+  }
+
+  const providerName = (settings as { sms_provider?: string }).sms_provider ?? "mock";
+  const provider = resolveProvider(providerName);
+
+  let succeeded = 0;
+  let failed = 0;
+
+  for (const row of failedRows) {
+    const nextAttempt = row.attempts + 1;
+
+    try {
+      const result = await provider.send({
+        to: row.to_phone,
+        message: row.message,
+      });
+
+      const newStatus = result.ok ? "sent" : "failed";
+      const newError = result.ok ? null : result.error;
+
+      await service
+        .from("notifications_outbox")
+        .update({
+          status: newStatus,
+          sent_at: result.ok ? new Date().toISOString() : null,
+          error_message: newError,
+          attempts: nextAttempt,
+        })
+        .eq("id", row.id);
+
+      if (result.ok) succeeded++;
+      else failed++;
+    } catch (error) {
+      await service
+        .from("notifications_outbox")
+        .update({
+          status: "failed",
+          error_message: (error as Error).message,
+          attempts: nextAttempt,
+        })
+        .eq("id", row.id);
+      failed++;
+    }
+  }
+
+  return {
+    processed: failedRows.length,
+    succeeded,
+    failed,
+  };
 }
