@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { after } from "next/server";
 import { z } from "zod";
 
 import { canTransition, isOrderStatus } from "@/lib/order-status";
@@ -120,13 +121,17 @@ export async function PATCH(req: Request, { params }: Params) {
     : order?.customers;
   const toPhone = customer?.phone;
   if (toPhone) {
-    void notifyOnStatusChange({
-      orderId: id,
-      newStatus: nextStatus,
-      channel: "sms",
-      toPhone,
-    }).catch((e) => {
-      console.error(`notification (status change): ${(e as Error).message}`);
+    after(async () => {
+      try {
+        await notifyOnStatusChange({
+          orderId: id,
+          newStatus: nextStatus,
+          channel: "sms",
+          toPhone,
+        });
+      } catch (e) {
+        console.error(`notification (status change): ${(e as Error).message}`);
+      }
     });
   }
 
