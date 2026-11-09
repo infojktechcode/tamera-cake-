@@ -42,9 +42,29 @@ export function createRateLimiter(options: RateLimitOptions): RateLimiter {
   // ip -> { count, resetAt }
   const buckets = new Map<string, { count: number; resetAt: number }>();
 
+  // Prevent unbounded growth on long-running serverless instances.
+  const MAX_BUCKETS = 10_000;
+  const CLEANUP_INTERVAL = 5 * 60_000; // 5 minutes
+  let lastCleanup = Date.now();
+
+  function maybeCleanup(now: number) {
+    if (now - lastCleanup < CLEANUP_INTERVAL) return;
+    lastCleanup = now;
+    for (const [ip, bucket] of buckets) {
+      if (bucket.resetAt <= now) buckets.delete(ip);
+    }
+    // Hard cap: if still over limit, drop oldest 10% (by resetAt)
+    if (buckets.size > MAX_BUCKETS) {
+      const toDrop = Math.floor(buckets.size * 0.1);
+      const sorted = [...buckets.entries()].sort((a, b) => a[1].resetAt - b[1].resetAt);
+      for (let i = 0; i < toDrop; i++) buckets.delete(sorted[i][0]);
+    }
+  }
+
   return {
     check(headers: Headers): RateLimitResult {
       const now = Date.now();
+      maybeCleanup(now);
       const ip = clientIp(headers);
       const bucket = buckets.get(ip);
 
