@@ -88,8 +88,9 @@ export function profitPerUnit(price: number, cost: number | null): number | null
 /**
  * Is this a path we are willing to store in `products.image_url`?
  *
- * Two shapes exist: the seed's public showcase photos (`/showcase/*.jpg`) and
- * uploads from this dashboard (`products/<random>.<ext>`). Anything else —
+ * Three shapes exist: the seed's public showcase photos (`/showcase/*.jpg`),
+ * the pastry photos in their showcase subfolder (`/showcase/Pastries/<file>`)
+ * and uploads from this dashboard (`products/<random>.<ext>`). Anything else —
  * another customer's file, a traversal, a remote URL — is refused so the
  * column can never be pointed somewhere unexpected.
  */
@@ -97,6 +98,12 @@ export function isValidProductImagePath(value: string): boolean {
   if (value.length > 300) return false;
   return (
     /^\/showcase\/[a-z0-9][a-z0-9._-]*\.jpg$/i.test(value) ||
+    /^\/showcase\/Pastries\/[a-z0-9][a-z0-9._-]*\.(jpg|jpeg|png|webp)$/i.test(
+      value,
+    ) ||
+    /^\/showcase\/cakes\/[a-z0-9][a-z0-9._-]*\.(jpg|jpeg|png|webp)$/i.test(
+      value,
+    ) ||
     /^products\/[a-z0-9][a-z0-9-]*\.(jpg|png|webp)$/i.test(value)
   );
 }
