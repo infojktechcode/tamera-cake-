@@ -3,6 +3,8 @@ import { z } from "zod";
 
 import { getStaffSession } from "@/lib/session";
 import { createServiceClient } from "@/lib/supabase/service";
+import { adminWriteLimiter } from "@/lib/rate-limit";
+import { requireCapability } from "@/lib/permissions";
 
 /**
  * POST /api/admin/orders/[id]/payments — record a payment.
@@ -24,11 +26,24 @@ const bodySchema = z.strictObject({
 type Params = { params: Promise<{ id: string }> };
 
 export async function POST(req: Request, { params }: Params) {
+  // Rate limit: 20 write requests per minute per IP
+  const rateLimitResult = await adminWriteLimiter.check(req.headers);
+  if (!rateLimitResult.ok) {
+    return NextResponse.json(
+      { ok: false, error: "Too many requests. Please slow down." },
+      { status: 429, headers: { "Retry-After": String(rateLimitResult.retryAfterSeconds ?? 60) } },
+    );
+  }
+
   const session = await getStaffSession(req);
   if (!session) {
     return NextResponse.json({ ok: false, error: "Please sign in." }, { status: 401 });
   }
   const { user, supabase } = session;
+
+  // Capability check: managePayments
+  const capError = requireCapability(user.role, "managePayments");
+  if (capError) return capError;
 
   const { id } = await params;
 

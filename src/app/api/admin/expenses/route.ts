@@ -4,6 +4,7 @@ import { z } from "zod";
 import { can } from "@/lib/permissions";
 import { getStaffSession } from "@/lib/session";
 import { createServiceClient } from "@/lib/supabase/service";
+import { adminWriteLimiter } from "@/lib/rate-limit";
 
 /**
  * POST /api/admin/expenses — record an expense (spec §6.2, owner only).
@@ -26,6 +27,15 @@ const bodySchema = z.strictObject({
 });
 
 export async function POST(req: Request) {
+  // Rate limit: 20 write requests per minute per IP
+  const rateLimitResult = await adminWriteLimiter.check(req.headers);
+  if (!rateLimitResult.ok) {
+    return NextResponse.json(
+      { ok: false, error: "Too many requests. Please slow down." },
+      { status: 429, headers: { "Retry-After": String(rateLimitResult.retryAfterSeconds ?? 60) } },
+    );
+  }
+
   const session = await getStaffSession(req);
   if (!session) {
     return NextResponse.json({ ok: false, error: "Please sign in." }, { status: 401 });

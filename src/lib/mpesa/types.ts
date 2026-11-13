@@ -111,3 +111,29 @@ export const DARAJA_ENDPOINTS = {
   stkPush: '/mpesa/stkpush/v1/processrequest',
   query: '/mpesa/stkpushquery/v1/query',
 } as const;
+
+/**
+ * STK Push Query Request
+ */
+export interface StkPushQueryRequest {
+  BusinessShortCode: string;
+  Password: string;
+  Timestamp: string;
+  CheckoutRequestID: string;
+}
+
+/**
+ * STK Push Query Response
+ */
+export interface StkPushQueryResponse {
+  ResponseCode: string;
+  ResponseDescription: string;
+  MerchantRequestID: string;
+  CheckoutRequestID: string;
+  ResultCode?: string;
+  ResultDesc?: string;
+  MpesaReceiptNumber?: string;
+  TransactionDate?: string;
+  PhoneNumber?: string;
+  Amount?: number;
+}

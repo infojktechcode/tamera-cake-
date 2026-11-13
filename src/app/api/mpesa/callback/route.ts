@@ -1,18 +1,22 @@
 import { NextResponse } from "next/server";
 
-import { extractMpesaReceipt, parseCallback } from "@/lib/mpesa";
+import {
+  extractMpesaReceipt,
+  parseCallback,
+  verifyDarajaCallback,
+} from "@/lib/mpesa";
 import { mpesaCallbackLimiter } from "@/lib/rate-limit";
 import { createServiceClient } from "@/lib/supabase/service";
+import type { Json } from "@/lib/database.types";
 
 /**
  * POST /api/mpesa/callback — where Daraja reports the STK Push result.
  *
- * ⚠️ Not cryptographically authenticated: Daraja STK Push callbacks carry no
- * signature. What protects this endpoint is that (1) the CheckoutRequestID is
- * an unguessable Safaricom-generated id, (2) the database function validates
- * the received amount against the expected deposit and records mismatches as
- * failed, (3) only pending attempts can complete, and (4) an unknown
- * CheckoutRequestID changes nothing. Keep the URL secret-ish and HTTPS-only.
+ * Security: This endpoint now implements multi-layer callback verification:
+ * 1. Structure validation - validates callback has required fields and types
+ * 2. HMAC-SHA256 verification (optional, for C2B) - verifies signature header
+ * 3. STK Push Query verification (optional) - independently queries Safaricom
+ *    for transaction status using CheckoutRequestID
  *
  * Response contract: Daraja expects 200 with `ResultCode: 0` to stop
  * retrying. Anything else is retried, so only genuine database failures
@@ -52,9 +56,12 @@ export async function POST(req: Request): Promise<NextResponse> {
     );
   }
 
+  // Get raw body for HMAC verification
+  const rawBody = await req.text();
+
   let payload: unknown;
   try {
-    payload = await req.json();
+    payload = JSON.parse(rawBody);
   } catch {
     return NextResponse.json(
       { ResultCode: 1, ResultDesc: "Invalid payload" },
@@ -72,6 +79,32 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ ResultCode: 1, ResultDesc: "Malformed callback" });
   }
 
+  // Perform cryptographic verification of the callback
+  const signatureHeader = req.headers.get('x-signature') ?? req.headers.get('x-mpesa-signature') ?? undefined;
+
+  const verification = await verifyDarajaCallback(
+    callback,
+    rawBody,
+    signatureHeader
+  );
+
+  if (!verification.verified) {
+    console.warn(
+      `[mpesa] callback verification failed for ${callback.CheckoutRequestID}: ${verification.reason}`
+    );
+    // Return 200 with ResultCode 1 to stop Daraja retries for invalid callbacks
+    // but log the failure for monitoring
+    return NextResponse.json({ ResultCode: 1, ResultDesc: "Callback verification failed" });
+  }
+
+  // Log verification methods used for audit trail
+  console.info(
+    `[mpesa] callback verified for ${callback.CheckoutRequestID}: ` +
+      `structure=${verification.methods.structure}, ` +
+      `hmac=${verification.methods.hmac}, ` +
+      `stkQuery=${verification.methods.stkQuery}`
+  );
+
   // Failure callbacks have no metadata; a success without Amount/receipt is
   // treated as missing (the database function then refuses to complete it).
   const receipt = extractMpesaReceipt(callback);
@@ -82,9 +115,9 @@ export async function POST(req: Request): Promise<NextResponse> {
     p_merchant_request_id: callback.MerchantRequestID,
     p_result_code: callback.ResultCode,
     p_result_desc: callback.ResultDesc,
-    p_mpesa_receipt_number: receipt?.mpesaReceiptNumber ?? null,
-    p_amount_received: receipt?.amount ?? null,
-    p_callback_payload: redactCallbackPayload(payload),
+    p_mpesa_receipt_number: receipt?.mpesaReceiptNumber ?? "",
+    p_amount_received: receipt?.amount ?? 0,
+    p_callback_payload: redactCallbackPayload(payload) as Json,
   });
 
   if (error) {

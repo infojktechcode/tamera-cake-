@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 import { WalkInForm, type WalkInProductOption } from "@/components/admin/walk-in-form";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { resolveProductImage } from "@/lib/product-image";
 import { requireUser } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
@@ -42,7 +43,9 @@ export default async function AdminWalkInPage() {
         </p>
       </header>
 
-      <WalkInForm products={products} />
+      <ErrorBoundary>
+        <WalkInForm products={products} />
+      </ErrorBoundary>
     </div>
   );
 }

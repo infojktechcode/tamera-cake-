@@ -15,7 +15,12 @@ import {
   DARAJA_ENDPOINTS,
   extractMpesaReceipt,
   MpesaReceiptData,
+  StkPushQueryRequest,
+  StkPushQueryResponse,
 } from "./types";
+
+// Re-export types for consumers of this module
+export type { StkPushQueryResponse, StkPushQueryRequest } from "./types";
 
 /**
  * In-memory token cache (per server instance)
@@ -181,6 +186,62 @@ export async function initiateStkPush(
   }
 
   return result;
+}
+
+/**
+ * Query STK Push status using CheckoutRequestID
+ * This provides independent verification of the transaction status
+ * directly from Safaricom, protecting against callback spoofing.
+ */
+export async function initiateStkPushQuery(
+  config: DarajaConfig,
+  checkoutRequestId: string
+): Promise<StkPushQueryResponse> {
+  const accessToken = await getAccessToken(config);
+  const baseUrl = DARAJA_BASE_URLS[config.environment];
+  const queryUrl = `${baseUrl}${DARAJA_ENDPOINTS.query}`;
+
+  const timestamp = generateTimestamp();
+  const password = generateStkPassword(
+    config.businessShortCode,
+    config.passkey,
+    timestamp
+  );
+
+  const request: StkPushQueryRequest = {
+    BusinessShortCode: config.businessShortCode,
+    Password: password,
+    Timestamp: timestamp,
+    CheckoutRequestID: checkoutRequestId,
+  };
+
+  const response = await fetch(queryUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+    // Daraja recommends timeout of 60s for queries
+    signal: AbortSignal.timeout(60_000),
+  });
+
+  const responseText = await response.text();
+
+  let data: StkPushQueryResponse;
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    throw new Error(`Daraja STK Push Query returned invalid JSON: ${responseText}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      `Daraja STK Push Query failed (${response.status}): ${responseText}`
+    );
+  }
+
+  return data;
 }
 
 /**

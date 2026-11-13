@@ -63,6 +63,10 @@ export const getStaffSession = async (
   if (cookieUser) {
     const user = await loadProfile(cookieClient, cookieUser.id);
     if (!user) return null;
+
+    // Enforce AAL2 for superadmin
+    await enforceAal2ForSuperadmin(cookieClient, user.role);
+
     return {
       user: { ...user, email: cookieUser.email ?? "" },
       supabase: cookieClient,
@@ -94,6 +98,9 @@ export const getStaffSession = async (
   const user = await loadProfile(scoped, tokenUser.id);
   if (!user) return null;
 
+  // Enforce AAL2 for superadmin
+  await enforceAal2ForSuperadmin(scoped, user.role);
+
   return { user: { ...user, email: tokenUser.email ?? "" }, supabase: scoped };
 };
 
@@ -109,12 +116,36 @@ export const getUser = async (request?: Request): Promise<SessionUser | null> =>
 };
 
 /**
+ * Check if a superadmin user has AAL2 (MFA) level authentication.
+ * Throws if superadmin lacks AAL2.
+ * Respects NEXT_PUBLIC_ENFORCE_MFA flag (default: false for safe rollout).
+ *
+ * Exported for testing.
+ */
+export async function enforceAal2ForSuperadmin(supabase: SupabaseClient, role: Role): Promise<void> {
+  if (role !== "superadmin") return;
+
+  // Feature flag: AAL2 enforcement for superadmin (default off for safe rollout)
+  const enforceMfa = process.env.NEXT_PUBLIC_ENFORCE_MFA === "true";
+  if (!enforceMfa) return;
+
+  const { data: { user } } = await supabase.auth.getUser();
+  const aal = user?.app_metadata?.aal || user?.user_metadata?.aal;
+  if (aal !== "aal2") {
+    const error = new Error("MFA_REQUIRED");
+    (error as any).code = "MFA_REQUIRED";
+    throw error;
+  }
+}
+
+/**
  * Resolve the signed-in staff member (user + profile) in a Server Component.
  *
  * - Not signed in → redirect to /login.
  * - Signed in but no profile row, or inactive → sign out is handled by the
  *   caller's proxy; we redirect to /login so a broken account never renders
  *   the admin shell.
+ * - Superadmin without AAL2 → redirect to MFA challenge.
  */
 export const requireUser = async (): Promise<SessionUser> => {
   // Everything below reads the session cookie and Supabase's session handling

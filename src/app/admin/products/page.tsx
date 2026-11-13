@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 import { ProductsTabs } from "@/components/admin/products-tabs";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { listCatalogue } from "@/lib/catalogue-admin";
 import { can } from "@/lib/permissions";
 import { requireUser } from "@/lib/session";
@@ -39,15 +40,17 @@ export default async function AdminProductsPage() {
         )}
       </header>
 
-      <ProductsTabs
-        products={catalogue.products}
-        flavours={catalogue.flavours}
-        sizes={catalogue.sizes}
-        tiers={catalogue.tiers}
-        canEditPrice={canEditPrice}
-        canViewCost={canViewCost}
-        canDelete={can(user.role, "deleteProducts")}
-      />
+      <ErrorBoundary>
+        <ProductsTabs
+          products={catalogue.products}
+          flavours={catalogue.flavours}
+          sizes={catalogue.sizes}
+          tiers={catalogue.tiers}
+          canEditPrice={canEditPrice}
+          canViewCost={canViewCost}
+          canDelete={can(user.role, "deleteProducts")}
+        />
+      </ErrorBoundary>
     </div>
   );
 }

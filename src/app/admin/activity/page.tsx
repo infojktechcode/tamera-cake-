@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 import { ActivityLog } from "@/components/admin/activity-log";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { can } from "@/lib/permissions";
 import { getActivityLog } from "@/lib/admin-activity";
 import { requireUser } from "@/lib/session";
@@ -49,7 +50,9 @@ export default async function AdminActivityPage({
         </p>
       </header>
 
-      <ActivityLog page={page} cursor={cursor} />
+      <ErrorBoundary>
+        <ActivityLog page={page} cursor={cursor} />
+      </ErrorBoundary>
     </div>
   );
 }

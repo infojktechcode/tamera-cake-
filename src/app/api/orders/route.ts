@@ -18,6 +18,7 @@ import { startDepositForNewOrder } from "@/lib/mpesa/checkout";
 import { orderLimiter } from "@/lib/rate-limit";
 import { createServiceClient } from "@/lib/supabase/service";
 import { orderPayloadSchema, type OrderPayload } from "@/lib/validators/order.schema";
+import type { Json } from "@/lib/database.types";
 
 /**
  * POST /api/orders — the order security boundary.
@@ -269,7 +270,7 @@ export async function POST(
       p_request_hash: versionedRequestHash,
       p_customer: { name: order.customer.name, phone },
       p_date_needed: order.dateNeeded,
-      p_lines: order.lines,
+      p_lines: order.lines as unknown as Json,
       p_order: {
         type,
         fulfilment: order.fulfilment.kind,

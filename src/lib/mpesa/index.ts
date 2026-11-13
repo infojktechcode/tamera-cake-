@@ -6,3 +6,4 @@
 export * from "./types";
 export * from "./validation";
 export * from "./daraja";
+export * from "./callback-verification";

@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/lib/database.types";
 
 export async function getSettings() {
   await requireUser();
@@ -99,6 +100,8 @@ export async function updateSettings(formData: FormData) {
   }
 
   // Parse JSON string fields
+  type SettingsUpdate = Database["public"]["Tables"]["settings"]["Update"];
+
   const updateData: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(parsed.data)) {
     if (value === undefined || value === null) continue;
@@ -116,7 +119,7 @@ export async function updateSettings(formData: FormData) {
   const supabase = await createClient(await cookies());
   const { error } = await supabase
     .from("settings")
-    .update(updateData)
+    .update(updateData as SettingsUpdate)
     .eq("id", 1);
 
   if (error) throw new Error(error.message);

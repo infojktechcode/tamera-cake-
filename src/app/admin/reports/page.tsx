@@ -1,4 +1,5 @@
 import { ReportsExport } from "@/components/admin/reports-export";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { can } from "@/lib/permissions";
 import { todayInKenya } from "@/lib/format";
 import { requireUser } from "@/lib/session";
@@ -26,7 +27,9 @@ export default async function ReportsPage() {
           Export sales, orders, customers or expenses for a selected period.
         </p>
       </header>
-      <ReportsExport today={todayInKenya()} />
+      <ErrorBoundary>
+        <ReportsExport today={todayInKenya()} />
+      </ErrorBoundary>
     </div>
   );
 }

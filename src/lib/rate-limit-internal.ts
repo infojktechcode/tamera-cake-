@@ -15,6 +15,8 @@ export interface RateLimitOptions {
   limit: number;
   /** Window length in milliseconds. */
   windowMs: number;
+  /** Redis key prefix for this limiter (e.g., "rl:order"). Required for distributed limiters. */
+  prefix?: string;
 }
 
 export interface RateLimitResult {

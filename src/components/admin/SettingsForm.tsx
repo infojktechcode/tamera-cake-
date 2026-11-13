@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { updateSettings } from "@/app/admin/settings/actions";
+import type { Json } from "@/lib/database.types";
 
 interface SettingsFormProps {
   initialSettings: {
@@ -17,7 +18,7 @@ interface SettingsFormProps {
     min_lead_days: number;
     sms_enabled: boolean;
     sms_provider: string;
-    message_templates: Record<string, string>;
+    message_templates: Json;
   };
 }
 

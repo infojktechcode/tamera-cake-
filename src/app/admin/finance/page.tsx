@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 import { ExpenseLog } from "@/components/admin/expense-log";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { FinanceView } from "@/components/admin/finance-view";
 import { can } from "@/lib/permissions";
 import { getFinanceSummary } from "@/lib/admin-finance";
@@ -56,9 +57,13 @@ export default async function AdminFinancePage() {
         </p>
       </header>
 
-      <FinanceView summary={summary} />
+      <ErrorBoundary>
+        <FinanceView summary={summary} />
+      </ErrorBoundary>
 
-      <ExpenseLog expenses={expenses} monthStart={monthStart} monthTotal={monthTotal} />
+      <ErrorBoundary>
+        <ExpenseLog expenses={expenses} monthStart={monthStart} monthTotal={monthTotal} />
+      </ErrorBoundary>
     </div>
   );
 }

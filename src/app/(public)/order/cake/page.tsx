@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { CakeBuilder } from "@/components/public/CakeBuilder";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { getFlavourCards } from "@/lib/catalog";
 import {
   getBlockedDates,
@@ -23,7 +24,9 @@ type Props = { searchParams: Promise<{ flavour?: string }> };
 export default function OrderCakePage({ searchParams }: Props) {
   return (
     <Suspense fallback={<BuilderSkeleton />}>
-      <CakeBuilderRoute searchParams={searchParams} />
+      <ErrorBoundary>
+        <CakeBuilderRoute searchParams={searchParams} />
+      </ErrorBoundary>
     </Suspense>
   );
 }

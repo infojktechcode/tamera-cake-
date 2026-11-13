@@ -66,16 +66,19 @@ function createLocalRateLimiter(options: RateLimitOptions): RateLimiter {
  * Creates a distributed rate limiter using Upstash Redis.
  *
  * Production (Vercel): uses Upstash Redis via REST API. Requires
- * UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN. If missing in
- * production, throws to fail securely — never silently falls back.
+ * UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.
  *
  * Build (next build): uses local in-memory fallback so the build completes.
  *
  * Development: uses a local in-memory fallback when explicitly opted in via
  * USE_LOCAL_RATE_LIMITER=true.
+ *
+ * Fail-open vs Fail-closed:
+ * - failOpen: allows request through if Redis is unavailable (callback, order)
+ * - failClosed: blocks request if Redis is unavailable (login)
  */
-export function createDistributedRateLimiter(options: RateLimitOptions): RateLimiter {
-  const { limit, windowMs } = options;
+export function createDistributedRateLimiter(options: RateLimitOptions & { failOpen?: boolean }): RateLimiter {
+  const { limit, windowMs, prefix = "rl:default", failOpen = false } = options;
 
   // Production (Vercel): distributed Upstash Redis
   if (isProduction()) {
@@ -93,7 +96,7 @@ export function createDistributedRateLimiter(options: RateLimitOptions): RateLim
     const ratelimit = new Ratelimit({
       redis,
       limiter: Ratelimit.fixedWindow(limit, `${windowMs / 1000}s`),
-      prefix: "rl:upload",
+      prefix,
       // Disable analytics to reduce latency
       analytics: false,
     });
@@ -101,14 +104,27 @@ export function createDistributedRateLimiter(options: RateLimitOptions): RateLim
     return {
       async check(headers: Headers): Promise<RateLimitResult> {
         const ip = clientIp(headers);
-        const { success, limit: max, remaining, reset } = await ratelimit.limit(ip);
+        try {
+          const { success, limit: max, remaining, reset } = await ratelimit.limit(ip);
 
-        if (!success) {
-          const retryAfter = Math.max(1, reset - Math.floor(Date.now() / 1000));
-          return { ok: false, retryAfterSeconds: retryAfter };
+          if (!success) {
+            const retryAfter = Math.max(1, reset - Math.floor(Date.now() / 1000));
+            return { ok: false, retryAfterSeconds: retryAfter };
+          }
+
+          return { ok: true };
+        } catch (error) {
+          console.error(`[Rate Limiter ${prefix}] Redis error:`, error);
+          // Fail-open: allow request through (for callback, order)
+          // Fail-closed: block request (for login)
+          if (failOpen) {
+            console.warn(`[Rate Limiter ${prefix}] Failing OPEN due to Redis outage`);
+            return { ok: true };
+          } else {
+            console.warn(`[Rate Limiter ${prefix}] Failing CLOSED due to Redis outage`);
+            return { ok: false, retryAfterSeconds: 60 };
+          }
         }
-
-        return { ok: true };
       },
     };
   }

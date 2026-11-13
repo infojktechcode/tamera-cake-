@@ -147,7 +147,7 @@ export default async function HomePage() {
                 >
                   <div className="relative aspect-[4/3] overflow-hidden">
                     <Image
-                      src={cake.image_url}
+                      src={cake.image_url ?? "/placeholder-cake.jpg"}
                       alt={cake.name}
                       fill
                       sizes="(max-width: 768px) 50vw, 25vw"

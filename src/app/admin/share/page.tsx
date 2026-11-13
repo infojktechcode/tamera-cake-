@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 import { ShareTools } from "@/components/admin/share-tools";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { listCatalogue } from "@/lib/catalogue-admin";
 import { requireUser } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
@@ -29,7 +30,9 @@ export default async function SharePage() {
           Copy a product link, share it on WhatsApp or download a QR code for printing.
         </p>
       </header>
-      <ShareTools products={products} siteUrl={getSiteUrl()} />
+      <ErrorBoundary>
+        <ShareTools products={products} siteUrl={getSiteUrl()} />
+      </ErrorBoundary>
     </div>
   );
 }

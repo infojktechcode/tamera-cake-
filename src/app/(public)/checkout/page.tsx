@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { CheckoutForm } from "@/components/public/CheckoutForm";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { getBlockedDates, getDeliveryZones, getOrderSettings } from "@/lib/builder-data";
 import { buildPageMetadata } from "@/lib/og";
 import { getSiteUrl } from "@/lib/supabase/env";
@@ -30,11 +31,13 @@ export default async function CheckoutPage() {
         amount on WhatsApp.
       </p>
       <div className="mt-8">
-        <CheckoutForm
-          zones={zones.map((z) => ({ id: z.id, name: z.name, fee: z.fee }))}
-          settings={settings}
-          blockedDates={blockedDates}
-        />
+        <ErrorBoundary>
+          <CheckoutForm
+            zones={zones.map((z) => ({ id: z.id, name: z.name, fee: z.fee }))}
+            settings={settings}
+            blockedDates={blockedDates}
+          />
+        </ErrorBoundary>
       </div>
     </section>
   );

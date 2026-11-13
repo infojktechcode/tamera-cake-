@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 import { OrdersBoard } from "@/components/admin/orders-board";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { listOrders } from "@/lib/admin-orders";
 import { getMessageTemplates } from "@/lib/message-templates";
 import { requireUser } from "@/lib/session";
@@ -34,11 +35,13 @@ export default async function AdminOrdersPage() {
         </div>
       </header>
 
-      <OrdersBoard
-        initialOrders={orders}
-        templates={templates as unknown as Record<string, string>}
-        role={user.role}
-      />
+      <ErrorBoundary>
+        <OrdersBoard
+          initialOrders={orders}
+          templates={templates as unknown as Record<string, string>}
+          role={user.role}
+        />
+      </ErrorBoundary>
     </div>
   );
 }

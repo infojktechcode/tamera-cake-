@@ -68,6 +68,16 @@ export interface DarajaEnvConfig {
 }
 
 /**
+ * Daraja callback verification configuration
+ */
+export interface DarajaCallbackVerificationConfig {
+  /** Enable STK Push Query verification (independently verify transaction with Safaricom) */
+  enableStkQueryVerification: boolean;
+  /** Enable HMAC-SHA256 verification for C2B callbacks (Paybill/Buy Goods) */
+  enableHmacVerification: boolean;
+}
+
+/**
  * Get Daraja configuration from environment variables.
  * Throws if required variables are missing in production mode.
  * In development, returns a partial config that will fail at call time with clear errors.
@@ -106,6 +116,16 @@ export function getDarajaConfig(): DarajaEnvConfig {
     businessShortCode: businessShortCode ?? '',
     passkey: passkey ?? '',
     callbackUrl: callbackUrl ?? '',
+  };
+}
+
+/**
+ * Get Daraja callback verification configuration from environment variables.
+ */
+export function getDarajaCallbackVerificationConfig(): DarajaCallbackVerificationConfig {
+  return {
+    enableStkQueryVerification: process.env.MPESA_ENABLE_STK_QUERY_VERIFICATION !== 'false',
+    enableHmacVerification: process.env.MPESA_ENABLE_HMAC_VERIFICATION === 'true',
   };
 }
 

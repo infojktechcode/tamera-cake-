@@ -1,12 +1,15 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
+import { loginLimiter } from "@/lib/rate-limit";
 
 export interface LoginState {
   error?: string;
+  retryAfterSeconds?: number;
 }
 
 /**
@@ -17,6 +20,16 @@ export async function login(
   _prev: LoginState,
   formData: FormData,
 ): Promise<LoginState> {
+  // Rate limit: 5 attempts per 15 minutes per IP
+  const headersList = await headers();
+  const rateLimitResult = await loginLimiter.check(headersList);
+  if (!rateLimitResult.ok) {
+    return {
+      error: "Too many login attempts. Please try again later.",
+      retryAfterSeconds: rateLimitResult.retryAfterSeconds,
+    };
+  }
+
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
 

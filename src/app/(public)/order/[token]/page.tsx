@@ -5,6 +5,7 @@ import { Suspense } from "react";
 
 import { Confetti } from "@/components/public/Confetti";
 import { MpesaDepositPanel } from "@/components/public/MpesaDepositPanel";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { FadeUp } from "@/components/motion";
 import { formatKES } from "@/lib/format";
 import { getMessageTemplates } from "@/lib/message-templates";
@@ -123,14 +124,16 @@ async function OrderConfirmation({
       )}
 
       {order.depositRequired > 0 && (
-        <MpesaDepositPanel
-          token={token}
-          depositRequired={order.depositRequired}
-          depositPaid={order.amountPaid >= order.depositRequired}
-          orderStatus={order.status}
-          paymentsAvailable={isDarajaConfigured()}
-          paymentIssue={paymentIssue}
-        />
+        <ErrorBoundary>
+          <MpesaDepositPanel
+            token={token}
+            depositRequired={order.depositRequired}
+            depositPaid={order.amountPaid >= order.depositRequired}
+            orderStatus={order.status}
+            paymentsAvailable={isDarajaConfigured()}
+            paymentIssue={paymentIssue}
+          />
+        </ErrorBoundary>
       )}
 
       <div className="mt-8 rounded-2xl border border-cocoa/10 bg-vanilla/60 p-5">

@@ -1,5 +1,6 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { getServiceRoleKey, getSupabaseUrl } from "./env";
+import type { Database } from "../database.types";
 
 /**
  * SERVER-ONLY Supabase client with the service-role key.
@@ -13,7 +14,7 @@ export function getSupabaseService() {
 }
 
 export function createServiceClient() {
-  return createSupabaseClient(getSupabaseUrl(), getServiceRoleKey(), {
+  return createSupabaseClient<Database>(getSupabaseUrl(), getServiceRoleKey(), {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

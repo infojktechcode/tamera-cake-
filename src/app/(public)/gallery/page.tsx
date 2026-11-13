@@ -50,7 +50,7 @@ export default async function GalleryPage() {
               >
                 <div className="relative aspect-[4/3] overflow-hidden">
                   <Image
-                    src={cake.image_url}
+                    src={cake.image_url ?? "/placeholder-cake.jpg"}
                     alt={cake.name}
                     fill
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
