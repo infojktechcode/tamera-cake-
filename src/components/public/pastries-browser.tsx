@@ -10,7 +10,7 @@ import { formatKES } from "@/lib/format";
 import { visualFor } from "@/lib/visuals";
 
 // Soft gradient tiles that rotate by index so a monochrome emoji grid still
-// feels playful (seed pastries have no photos).
+// feels playful (used as a fallback when a pastry has no photo).
 const TILES = [
   "from-blush to-vanilla",
   "from-vanilla to-pistachio/40",

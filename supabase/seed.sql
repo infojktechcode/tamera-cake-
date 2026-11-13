@@ -27,23 +27,23 @@ insert into delivery_zones (name, fee, active) values
  ('Syokimau',400,true),('Nairobi',600,true);
 
 -- Pastries
-insert into products (category_id,name,slug,description,price,track_stock,stock_qty,low_stock_level,available,sort_order)
-select c.id, t.name, t.slug, t.description, t.price, true, 20, 5, true, t.so from categories c
+insert into products (category_id,name,slug,description,price,track_stock,stock_qty,low_stock_level,available,sort_order,image_url)
+select c.id, t.name, t.slug, t.description, t.price, true, 20, 5, true, t.so, t.img from categories c
 cross join (values
- ('Glazed donut','glazed-donut','Classic glazed ring donut',80,1),
- ('Chocolate donut','chocolate-donut','Filled/chocolate donut with sprinkles',100,2),
- ('Donut box (6)','donut-box-6','Six assorted donuts in a box',450,3),
- ('Cinnamon roll','cinnamon-roll','Soft cinnamon roll with icing',150,4),
- ('Sweet bun','sweet-bun','Soft sweet tea bun',40,5),
- ('Cake pop','cake-pop','Cake pop on a stick',120,6),
- ('Cakesickle','cakesickle','Frozen cake on a stick',150,7),
- ('Chocolate chip cookie','choc-chip-cookie','Classic choc chip cookie',60,8),
- ('Cookie pack (6)','cookie-pack-6','Six cookies in a pack',330,9),
- ('Mandazi pack (6)','mandazi-pack-6','Six mandazis in a pack',100,10),
- ('Cake loaf','cake-loaf','Vanilla or marble cake loaf',400,11),
- ('Banana loaf','banana-loaf','Banana cake loaf',450,12),
- ('Fruit loaf','fruit-loaf','Rich fruit cake loaf',500,13)
-) as t(name,slug,description,price,so)
+ ('Glazed donut','glazed-donut','Classic glazed ring donut',80,1,'/showcase/Pastries/Original-Glazed-Donuts.png'),
+ ('Chocolate donut','chocolate-donut','Filled/chocolate donut with sprinkles',100,2,'/showcase/Pastries/chocolate-frosted-donut-recipe-photo-tablefortwoblog-11-857x1200.jpg'),
+ ('Donut box (6)','donut-box-6','Six assorted donuts in a box',450,3,'/showcase/Pastries/6b608f37-1f63-4803-9a81-0bf373cae347.webp'),
+ ('Cinnamon roll','cinnamon-roll','Soft cinnamon roll with icing',150,4,'/showcase/Pastries/cinnamon-roll-icing-1-1200x1799.jpg'),
+ ('Sweet bun','sweet-bun','Soft sweet tea bun',40,5,'/showcase/Pastries/basic-sweet-buns-17.jpg'),
+ ('Cake pop','cake-pop','Cake pop on a stick',120,6,'/showcase/Pastries/image-2553-768x768.jpeg'),
+ ('Cakesickle','cakesickle','Frozen cake on a stick',150,7,'/showcase/Pastries/Cakesicles_in-a-row-scaled.webp'),
+ ('Chocolate chip cookie','choc-chip-cookie','Classic choc chip cookie',60,8,'/showcase/Pastries/BAKERY-STYLE-CHOCOLATE-CHIP-COOKIES-9.jpg'),
+ ('Cookie pack (6)','cookie-pack-6','Six cookies in a pack',330,9,'/showcase/Pastries/Cookie_box_6_assorted_3748bde4-7ab5-4f77-8596-f62243c917dc_2048x.webp'),
+ ('Mandazi pack (6)','mandazi-pack-6','Six mandazis in a pack',100,10,'/showcase/Pastries/Design-sans-titre-2025-10-04T171215.170.jpg'),
+ ('Cake loaf','cake-loaf','Vanilla or marble cake loaf',400,11,'/showcase/Pastries/Sponge-loaf-cake-picture-bakinghood-e.jpg'),
+ ('Banana loaf','banana-loaf','Banana cake loaf',450,12,'/showcase/Pastries/the_ultimate_moist_banana_bread_recipe.jpg'),
+ ('Fruit loaf','fruit-loaf','Rich fruit cake loaf',500,13,'/showcase/Pastries/Fruitcake-Loaf-Cake-close-up-of-cut-cake-and-slice-on-white-plate.webp')
+) as t(name,slug,description,price,so,img)
 where c.kind='pastry';
 
 -- Showcase cakes (products)

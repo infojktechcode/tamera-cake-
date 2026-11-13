@@ -83,6 +83,32 @@ describe("isValidProductImagePath", () => {
     expect(isValidProductImagePath("https://evil.example/x.jpg")).toBe(false);
   });
 
+  it("accepts the pastry showcase subfolder photos", () => {
+    expect(isValidProductImagePath("/showcase/Pastries/basic-sweet-buns-17.jpg")).toBe(
+      true,
+    );
+    expect(isValidProductImagePath("/showcase/Pastries/image-2553-768x768.jpeg")).toBe(
+      true,
+    );
+    expect(isValidProductImagePath("/showcase/Pastries/Cakesicles_in-a-row-scaled.webp")).toBe(
+      true,
+    );
+    expect(isValidProductImagePath("/showcase/Pastries/Original-Glazed-Donuts.png")).toBe(
+      true,
+    );
+    expect(
+      isValidProductImagePath(
+        "/showcase/Pastries/Design-sans-titre-2025-10-04T171215.170.jpg",
+      ),
+    ).toBe(true);
+  });
+
+  it("refuses traversal and unknown showcase subfolders", () => {
+    expect(isValidProductImagePath("/showcase/Pastries/../secret.jpg")).toBe(false);
+    expect(isValidProductImagePath("/showcase/Other/basic-sweet-buns-17.jpg")).toBe(false);
+    expect(isValidProductImagePath("/showcase/Pastries/script.exe")).toBe(false);
+  });
+
   it("refuses the wrong extension and empty paths", () => {
     expect(isValidProductImagePath("products/x.exe")).toBe(false);
     expect(isValidProductImagePath("")).toBe(false);
