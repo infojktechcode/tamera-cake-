@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getSupabasePublishableKey, getSupabaseUrl } from "./env";
+import type { Database } from "../database.types";
 
 /**
  * Create a Supabase client bound to an incoming request, plus the response that
@@ -18,7 +19,7 @@ function createClient(request: NextRequest) {
     },
   });
 
-  const supabase = createServerClient(getSupabaseUrl(), getSupabasePublishableKey(), {
+  const supabase = createServerClient<Database>(getSupabaseUrl(), getSupabasePublishableKey(), {
     cookies: {
       getAll() {
         return request.cookies.getAll();

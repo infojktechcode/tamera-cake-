@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { CartView } from "@/components/public/CartView";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 
 export const metadata: Metadata = {
   title: "Your cart",
@@ -17,7 +18,9 @@ export default function CartPage() {
         WhatsApp.
       </p>
       <div className="mt-8">
-        <CartView />
+        <ErrorBoundary>
+          <CartView />
+        </ErrorBoundary>
       </div>
     </section>
   );

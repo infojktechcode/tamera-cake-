@@ -5,6 +5,8 @@ import { z } from "zod";
 import { can } from "@/lib/permissions";
 import { getStaffSession } from "@/lib/session";
 import { createServiceClient } from "@/lib/supabase/service";
+import { adminWriteLimiter } from "@/lib/rate-limit";
+import type { Json } from "@/lib/database.types";
 
 /**
  * PATCH /api/admin/catalogue/[kind]/[id] — edit a cake flavour, a cake size or
@@ -52,6 +54,15 @@ function isKind(value: string): value is Kind {
 }
 
 export async function PATCH(req: Request, { params }: Params) {
+  // Rate limit: 20 write requests per minute per IP
+  const rateLimitResult = await adminWriteLimiter.check(req.headers);
+  if (!rateLimitResult.ok) {
+    return NextResponse.json(
+      { ok: false, error: "Too many requests. Please slow down." },
+      { status: 429, headers: { "Retry-After": String(rateLimitResult.retryAfterSeconds ?? 60) } },
+    );
+  }
+
   const session = await getStaffSession(req);
   if (!session) {
     return NextResponse.json({ ok: false, error: "Please sign in." }, { status: 401 });
@@ -123,8 +134,8 @@ export async function PATCH(req: Request, { params }: Params) {
     action: "catalogue_updated",
     table_name: table,
     record_id: id,
-    old_value: original as Record<string, unknown>,
-    new_value: input,
+    old_value: original as Json,
+    new_value: input as Json,
   });
   if (logError) {
     console.error(`activity_log (catalogue update): ${logError.message}`);

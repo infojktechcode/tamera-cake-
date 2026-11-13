@@ -56,3 +56,91 @@ export function getSiteUrl(): string {
     "http://localhost:3000"
   ).replace(/\/$/, "");
 }
+
+/** Daraja M-Pesa environment configuration. Server-only. */
+export interface DarajaEnvConfig {
+  environment: 'sandbox' | 'production';
+  consumerKey: string;
+  consumerSecret: string;
+  businessShortCode: string;
+  passkey: string;
+  callbackUrl: string;
+}
+
+/**
+ * Daraja callback verification configuration
+ */
+export interface DarajaCallbackVerificationConfig {
+  /** Enable STK Push Query verification (independently verify transaction with Safaricom) */
+  enableStkQueryVerification: boolean;
+  /** Enable HMAC-SHA256 verification for C2B callbacks (Paybill/Buy Goods) */
+  enableHmacVerification: boolean;
+}
+
+/**
+ * Get Daraja configuration from environment variables.
+ * Throws if required variables are missing in production mode.
+ * In development, returns a partial config that will fail at call time with clear errors.
+ */
+export function getDarajaConfig(): DarajaEnvConfig {
+  const environment = (process.env.MPESA_ENVIRONMENT as 'sandbox' | 'production') ?? 'sandbox';
+
+  const consumerKey = process.env.MPESA_CONSUMER_KEY;
+  const consumerSecret = process.env.MPESA_CONSUMER_SECRET;
+  const businessShortCode = process.env.MPESA_BUSINESS_SHORTCODE;
+  const passkey = process.env.MPESA_PASSKEY;
+  const callbackUrl = process.env.MPESA_CALLBACK_URL;
+
+  const missing: string[] = [];
+  if (!consumerKey) missing.push('MPESA_CONSUMER_KEY');
+  if (!consumerSecret) missing.push('MPESA_CONSUMER_SECRET');
+  if (!businessShortCode) missing.push('MPESA_BUSINESS_SHORTCODE');
+  if (!passkey) missing.push('MPESA_PASSKEY');
+  if (!callbackUrl) missing.push('MPESA_CALLBACK_URL');
+
+  if (missing.length > 0) {
+    const msg = `Missing Daraja environment variables: ${missing.join(', ')}. ` +
+      'Add them to .env.local or deployment environment. ' +
+      'Sandbox credentials can be obtained from https://developer.safaricom.co.ke/';
+    if (environment === 'production') {
+      throw new Error(msg);
+    }
+    // In development, warn but allow partial config (will fail at call time)
+    console.warn('[Daraja] ' + msg);
+  }
+
+  return {
+    environment,
+    consumerKey: consumerKey ?? '',
+    consumerSecret: consumerSecret ?? '',
+    businessShortCode: businessShortCode ?? '',
+    passkey: passkey ?? '',
+    callbackUrl: callbackUrl ?? '',
+  };
+}
+
+/**
+ * Get Daraja callback verification configuration from environment variables.
+ */
+export function getDarajaCallbackVerificationConfig(): DarajaCallbackVerificationConfig {
+  return {
+    enableStkQueryVerification: process.env.MPESA_ENABLE_STK_QUERY_VERIFICATION !== 'false',
+    enableHmacVerification: process.env.MPESA_ENABLE_HMAC_VERIFICATION === 'true',
+  };
+}
+
+/**
+ * Check if Daraja is fully configured (all required env vars present).
+ *
+ * Reads the environment directly — no warning, no throw — so it is safe to
+ * call on every request to decide whether online payment is offered at all.
+ */
+export function isDarajaConfigured(): boolean {
+  return Boolean(
+    process.env.MPESA_CONSUMER_KEY &&
+      process.env.MPESA_CONSUMER_SECRET &&
+      process.env.MPESA_BUSINESS_SHORTCODE &&
+      process.env.MPESA_PASSKEY &&
+      process.env.MPESA_CALLBACK_URL,
+  );
+}

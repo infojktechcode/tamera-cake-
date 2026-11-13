@@ -7,6 +7,8 @@ dashboard that works on a phone too.
 
 - **Public site** — home, cake gallery, pastries, cake builder, cart, checkout,
   order confirmation with a pre-filled WhatsApp message.
+- **Reseller setup** — see [SETUP.md](./SETUP.md) for configuration that is shared
+  across bakery deployments without code edits.
 - **Admin dashboard** — orders board with live alerts, order detail with cake
   details and reference photos, payments, the status machine, staff accounts.
 - **Supabase** — Postgres with Row Level Security on every table, Auth for staff,

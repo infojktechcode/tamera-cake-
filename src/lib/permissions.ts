@@ -1,3 +1,5 @@
+import { NextResponse } from "next/server";
+
 export type Role = "superadmin" | "manager";
 
 export const capabilities = {
@@ -55,4 +57,21 @@ export function isAdminPathAllowed(role: Role, path: string): boolean {
     return !blockedForManager.some((p) => path === p || path.startsWith(p + "/"));
   }
   return true;
+}
+
+/**
+ * Checks if a role has a specific capability.
+ * Returns an error response if not allowed, or null if allowed.
+ */
+export function requireCapability(
+  role: Role,
+  capability: Capability
+): NextResponse | null {
+  if (!capabilities[role][capability]) {
+    return NextResponse.json(
+      { ok: false, error: "You don't have permission to perform this action." },
+      { status: 403 }
+    );
+  }
+  return null;
 }

@@ -1,5 +1,6 @@
 import { getSettings } from "./actions";
 import { SettingsForm } from "@/components/admin/SettingsForm";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 
 export default async function SettingsPage() {
   const settings = await getSettings();
@@ -10,7 +11,9 @@ export default async function SettingsPage() {
         <h1 className="font-display text-3xl font-bold">Shop Settings</h1>
         <p className="text-ink-muted">Configure business rules and contact details.</p>
       </div>
-      <SettingsForm initialSettings={settings} />
+      <ErrorBoundary>
+        <SettingsForm initialSettings={settings} />
+      </ErrorBoundary>
     </div>
   );
 }

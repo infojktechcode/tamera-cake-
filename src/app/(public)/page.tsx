@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { FadeUp, Floating, Stagger, StaggerItem } from "@/components/motion";
@@ -5,7 +6,27 @@ import { HeroImage } from "@/components/public/hero";
 import { IMAGE_BLUR_DATA_URL } from "@/lib/blur";
 import { getFeaturedCakes, getPublicSettings } from "@/lib/catalog";
 import { formatKES } from "@/lib/format";
+import { buildPageMetadata } from "@/lib/og";
+import {
+  buildOpeningHoursJsonLd,
+  formatOpeningHours,
+  resolveFaq,
+  resolvePolicyLinks,
+  resolveSocialLinks,
+} from "@/lib/public-content";
+import { getSiteUrl } from "@/lib/supabase/env";
 import { getShopWhatsapp, waHref } from "@/lib/whatsapp";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return buildPageMetadata({
+    title: "Fresh cakes, pastries and custom bakes in Kitengela",
+    description:
+      "Order cakes and pastries in Kitengela, Kenya. Custom celebration cakes, same-day pastries, pickup and delivery options, and a simple deposit-based ordering flow.",
+    siteUrl: getSiteUrl(),
+    path: "/",
+    image: "/showcase/cakes/01-classic-black-forest.jpg",
+  });
+}
 
 const STEPS = [
   "Pick your cake or pastry",
@@ -30,9 +51,34 @@ export default async function HomePage() {
   ]);
   const address = settings.address ?? "Kitengela, Nairobi";
   const mapHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  const faq = resolveFaq(settings.faq_items);
+  const socialLinks = resolveSocialLinks(settings.social_links);
+  const policyLinks = resolvePolicyLinks(settings);
+  const businessJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Bakery",
+    name: "Tamera's Cakes & Bakery",
+    telephone: getShopWhatsapp(),
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: address,
+      addressLocality: "Kitengela",
+      addressRegion: "Nairobi County",
+      addressCountry: "KE",
+    },
+    ...buildOpeningHoursJsonLd(settings.opening_hours),
+    priceRange: "KES 500-KES 8000",
+    url: "https://tameras-cakes.vercel.app",
+    description:
+      "Fresh cakes, pastries and custom celebration bakes in Kitengela, Kenya.",
+  };
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(businessJsonLd) }}
+      />
       {/* 1 — Hero: headline, sprinkles, parallax image, two large choices. */}
       <section className="relative overflow-hidden bg-gradient-to-b from-blush/40 to-cream">
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -101,7 +147,7 @@ export default async function HomePage() {
                 >
                   <div className="relative aspect-[4/3] overflow-hidden">
                     <Image
-                      src={cake.image_url}
+                      src={cake.image_url ?? "/placeholder-cake.jpg"}
                       alt={cake.name}
                       fill
                       sizes="(max-width: 768px) 50vw, 25vw"
@@ -165,7 +211,81 @@ export default async function HomePage() {
         </FadeUp>
       </section>
 
-      {/* 5 — WhatsApp CTA. */}
+      <section className="mx-auto w-full max-w-5xl px-4 py-12 sm:py-16">
+        <FadeUp>
+          <div className="grid gap-6 rounded-3xl border border-cocoa/10 bg-vanilla/70 p-6 sm:grid-cols-2 sm:p-8">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-ink-muted">Visit us</p>
+              <h2 className="mt-2 font-display text-2xl font-bold text-cocoa">Cake pickup and delivery</h2>
+              <p className="mt-3 text-ink-muted">{address}</p>
+              <p className="mt-2 text-sm text-cocoa">
+                Call or WhatsApp us on <a href={waHref(getShopWhatsapp(), "Hi Tamera! I'd like to order.")}>{getShopWhatsapp()}</a>.
+              </p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-ink-muted">Opening hours</p>
+              <p className="mt-2 text-ink-muted">{formatOpeningHours(settings.opening_hours)}</p>
+              <p className="mt-4 text-sm text-cocoa">Deposits secure your order, and changes/cancellations are subject to our bakery policy.</p>
+              {policyLinks.length > 0 && (
+                <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                  {policyLinks.map((policy) => (
+                    <li key={policy.key}>
+                      <Link
+                        href={policy.href}
+                        className="text-strawberry underline-offset-2 hover:underline"
+                      >
+                        {policy.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </FadeUp>
+      </section>
+
+      {socialLinks.length > 0 && (
+        <section className="mx-auto w-full max-w-5xl px-4 pb-4">
+          <FadeUp>
+            <h2 className="sr-only">Follow us</h2>
+            <ul className="flex flex-wrap justify-center gap-3">
+              {socialLinks.map((social) => (
+                <li key={social.key}>
+                  <a
+                    href={social.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-10 items-center rounded-full border border-cocoa/10 bg-vanilla/70 px-4 py-2 text-sm font-medium text-cocoa transition hover:bg-vanilla"
+                  >
+                    {social.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </FadeUp>
+        </section>
+      )}
+
+      <section className="bg-blush/50 py-12 sm:py-16">
+        <div className="mx-auto w-full max-w-5xl px-4">
+          <FadeUp>
+            <h2 className="font-display text-2xl font-bold text-cocoa sm:text-3xl">FAQs</h2>
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              {faq.map((item) => (
+                <div
+                  key={item.question}
+                  className="rounded-2xl border border-cocoa/10 bg-vanilla/70 p-5"
+                >
+                  <h3 className="font-semibold text-cocoa">{item.question}</h3>
+                  <p className="mt-2 text-sm text-ink-muted">{item.answer}</p>
+                </div>
+              ))}
+            </div>
+          </FadeUp>
+        </div>
+      </section>
+
       <section className="bg-blush/50 py-12 sm:py-16">
         <div className="mx-auto w-full max-w-5xl px-4 text-center">
           <FadeUp>

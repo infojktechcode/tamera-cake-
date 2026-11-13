@@ -2,18 +2,31 @@
 
 import { cacheLife, cacheTag } from "next/cache";
 import { getPublicClient } from "./supabase/public";
+import { publicSettingsSchema } from "./settings-schema";
 
+/**
+ * Publicly readable settings. `sms_enabled` / `sms_provider` are
+ * deliberately excluded — the `anon_read_settings` RLS policy exposes
+ * every selected column, and those flags are server-side only.
+ */
 export type PublicSettings = {
   shop_name: string;
   whatsapp_number: string;
   address: string | null;
   opening_hours: Record<string, { open: string; close: string }>; // keys mon..sun
+  social_links: Record<string, string>;
+  faq_items: Array<{ question: string; answer: string }>;
+  delivery_policy: string | null;
+  payment_policy: string | null;
+  cancellation_policy: string | null;
+  brand_colours: Record<string, string>;
+  logo_url: string | null;
 };
 export type ShowcaseCake = {
   slug: string;
   name: string;
   description: string | null;
-  image_url: string;
+  image_url: string | null;
   price: number;
 };
 export type FlavourCard = {
@@ -46,10 +59,12 @@ export async function getPublicSettings(): Promise<PublicSettings> {
   cacheLife("hours");
   const { data, error } = await getPublicClient()
     .from("settings")
-    .select("shop_name,whatsapp_number,address,opening_hours")
+    .select(
+      "shop_name,whatsapp_number,address,opening_hours,social_links,faq_items,delivery_policy,payment_policy,cancellation_policy,brand_colours,logo_url",
+    )
     .single();
   if (error) throw new Error(`getPublicSettings: ${error.message}`);
-  return data as PublicSettings;
+  return publicSettingsSchema.parse(data);
 }
 
 /** The 8 showcase cakes are the only products with `/showcase/*.jpg` images. */
@@ -66,6 +81,32 @@ export async function getFeaturedCakes(limit = 4): Promise<ShowcaseCake[]> {
     .order("sort_order", { ascending: true })
     .limit(limit);
   if (error) throw new Error(`getFeaturedCakes: ${error.message}`);
+  return (data ?? []).map((row) => ({
+    slug: row.slug,
+    name: row.name,
+    description: row.description,
+    image_url: row.image_url,
+    price: row.price,
+  }));
+}
+
+/**
+ * Gallery items: every available showcase cake, reusing the same product
+ * query pattern as `getFeaturedCakes` (no separate gallery table). Cards
+ * link to the existing `/p/[slug]` page — never a duplicate ordering path.
+ */
+export async function getGalleryItems(): Promise<ShowcaseCake[]> {
+  cacheTag("catalog");
+  cacheLife("hours");
+  const { data, error } = await getPublicClient()
+    .from("products")
+    .select("slug,name,description,image_url,price,category:categories!inner(kind,active)")
+    .eq("categories.kind", "cake")
+    .eq("categories.active", true)
+    .eq("available", true)
+    .like("image_url", "/showcase/*.jpg")
+    .order("sort_order", { ascending: true });
+  if (error) throw new Error(`getGalleryItems: ${error.message}`);
   return (data ?? []).map((row) => ({
     slug: row.slug,
     name: row.name,

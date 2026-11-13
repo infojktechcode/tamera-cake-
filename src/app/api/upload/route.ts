@@ -41,7 +41,8 @@ export async function POST(
   >
 > {
   // --- 1. rate limit by IP (spec §10) ---
-  const limit = uploadLimiter.check(req.headers);
+  const limitResult = uploadLimiter.check(req.headers);
+  const limit = limitResult instanceof Promise ? await limitResult : limitResult;
   if (!limit.ok) {
     return NextResponse.json(
       { ok: false as const, error: "Too many uploads. Please wait a minute and try again." },

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 
 import { ProductionCalendar } from "@/components/admin/production-calendar";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { getProductionCalendar } from "@/lib/admin-calendar";
 import { requireUser } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
@@ -125,13 +126,15 @@ export default async function AdminCalendarPage({ searchParams }: PageProps) {
         </nav>
       </header>
 
-      <ProductionCalendar
-        days={days}
-        anchor={anchor}
-        from={range.from}
-        to={range.to}
-        canBlock={user.role === "superadmin"}
-      />
+      <ErrorBoundary>
+        <ProductionCalendar
+          days={days}
+          anchor={anchor}
+          from={range.from}
+          to={range.to}
+          canBlock={user.role === "superadmin"}
+        />
+      </ErrorBoundary>
     </div>
   );
 }

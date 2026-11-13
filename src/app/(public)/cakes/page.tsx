@@ -5,9 +5,20 @@ import { FadeUp, Stagger, StaggerItem } from "@/components/motion";
 import { IMAGE_BLUR_DATA_URL } from "@/lib/blur";
 import { getFlavourCards } from "@/lib/catalog";
 import { formatKES } from "@/lib/format";
+import { buildPageMetadata } from "@/lib/og";
+import { getSiteUrl } from "@/lib/supabase/env";
 import { visualFor } from "@/lib/visuals";
 
-export const metadata: Metadata = { title: "Cakes" };
+export async function generateMetadata(): Promise<Metadata> {
+  return buildPageMetadata({
+    title: "Cakes",
+    description:
+      "Browse custom and celebration cakes in Kitengela, Kenya. Choose a flavour, select a size, and start your order with a custom build.",
+    siteUrl: getSiteUrl(),
+    path: "/cakes",
+    image: "/showcase/cakes/01-classic-black-forest.jpg",
+  });
+}
 
 export default async function CakesPage() {
   const flavours = await getFlavourCards();

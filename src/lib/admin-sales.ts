@@ -91,6 +91,9 @@ export async function getSalesSummary(
     supabase
       .from("payments")
       .select("amount, paid_at")
+      // Only completed payments count as revenue — a pending STK-push
+      // attempt has not been paid yet.
+      .eq("payment_status", "completed")
       .gte("paid_at", from.toISOString())
       .limit(2000),
     supabase.from("products").select("id, name, available").order("name"),

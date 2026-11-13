@@ -28,8 +28,24 @@ export const metadata: Metadata = {
     default: "Tamera's Cakes & Bakery",
     template: "%s | Tamera's Cakes",
   },
-  description: "Cakes and pastries made with love in Kitengela. Order online, pick up or delivered.",
+  description:
+    "Fresh cakes, pastries and custom celebration bakes in Kitengela, Kenya. Order online, reserve a deposit, and pick up or arrange delivery.",
   manifest: "/site.webmanifest",
+  openGraph: {
+    type: "website",
+    locale: "en_KE",
+    url: getSiteUrl(),
+    title: "Tamera's Cakes & Bakery",
+    description:
+      "Fresh cakes, pastries and custom celebration bakes in Kitengela, Kenya. Order online, reserve a deposit, and pick up or arrange delivery.",
+    siteName: "Tamera's Cakes & Bakery",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Tamera's Cakes & Bakery",
+    description:
+      "Fresh cakes, pastries and custom celebration bakes in Kitengela, Kenya. Order online, reserve a deposit, and pick up or arrange delivery.",
+  },
 };
 
 export default function RootLayout({

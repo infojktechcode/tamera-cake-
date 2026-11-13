@@ -1,13 +1,20 @@
 import type { Metadata } from "next";
 
 import { CheckoutForm } from "@/components/public/CheckoutForm";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { getBlockedDates, getDeliveryZones, getOrderSettings } from "@/lib/builder-data";
+import { buildPageMetadata } from "@/lib/og";
+import { getSiteUrl } from "@/lib/supabase/env";
 
-export const metadata: Metadata = {
-  title: "Checkout",
-  description: "Review your order and tell us how you'd like it delivered.",
-  alternates: { canonical: "/checkout" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return buildPageMetadata({
+    title: "Checkout",
+    description: "Review your order and tell us how you'd like it delivered.",
+    siteUrl: getSiteUrl(),
+    path: "/checkout",
+    image: "/showcase/cakes/01-classic-black-forest.jpg",
+  });
+}
 
 export default async function CheckoutPage() {
   const [zones, settings, blockedDates] = await Promise.all([
@@ -24,11 +31,13 @@ export default async function CheckoutPage() {
         amount on WhatsApp.
       </p>
       <div className="mt-8">
-        <CheckoutForm
-          zones={zones.map((z) => ({ id: z.id, name: z.name, fee: z.fee }))}
-          settings={settings}
-          blockedDates={blockedDates}
-        />
+        <ErrorBoundary>
+          <CheckoutForm
+            zones={zones.map((z) => ({ id: z.id, name: z.name, fee: z.fee }))}
+            settings={settings}
+            blockedDates={blockedDates}
+          />
+        </ErrorBoundary>
       </div>
     </section>
   );

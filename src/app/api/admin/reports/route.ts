@@ -4,6 +4,7 @@ import { z } from "zod";
 import { can } from "@/lib/permissions";
 import { todayInKenya } from "@/lib/format";
 import { getStaffSession } from "@/lib/session";
+import { adminReadLimiter } from "@/lib/rate-limit";
 
 const dateSchema = z
   .string()
@@ -66,6 +67,15 @@ function nextDay(day: string): string {
 }
 
 export async function GET(request: Request) {
+  // Rate limit: 60 read requests per minute per IP
+  const rateLimitResult = await adminReadLimiter.check(request.headers);
+  if (!rateLimitResult.ok) {
+    return NextResponse.json(
+      { error: "Too many requests. Please slow down." },
+      { status: 429, headers: { "Retry-After": String(rateLimitResult.retryAfterSeconds ?? 60) } },
+    );
+  }
+
   const session = await getStaffSession(request);
   if (!session) {
     return NextResponse.json({ error: "Please sign in." }, { status: 401 });

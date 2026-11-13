@@ -1,78 +1,76 @@
 /**
- * In-memory IP rate limiter for the public write routes.
+ * Rate limiter exports — unified interface for all rate limiters.
  *
- * The spec (§10) requires the order and upload routes to be rate limited by
- * IP. This is a per-instance, fixed-window counter: correct for the current
- * single-instance deploy, and swappable for a shared store (Upstash, Postgres)
- * without changing the call sites.
+ * All production limiters use distributed Upstash Redis.
+ * Development uses local in-memory fallback when USE_LOCAL_RATE_LIMITER=true.
  *
- * Not durable across restarts and not shared across instances — that is a
- * deliberate trade-off, not an oversight (see ledger ruling R4).
+ * Types and in-memory implementation are in `rate-limit-internal.ts`.
+ * Upstash implementation is in `rate-limit-upstash.ts`.
  */
 
-export interface RateLimitOptions {
-  /** Requests allowed per window, per IP. */
-  limit: number;
-  /** Window length in milliseconds. */
-  windowMs: number;
-}
+export {
+  type RateLimitOptions,
+  type RateLimitResult,
+  type RateLimiter,
+  clientIp,
+  createRateLimiter,
+} from "./rate-limit-internal";
 
-export interface RateLimitResult {
-  ok: boolean;
-  /** Seconds until the caller may retry. Only present when `ok` is false. */
-  retryAfterSeconds?: number;
-}
-
-export interface RateLimiter {
-  check(headers: Headers): RateLimitResult;
-}
-
-/** The client IP. `x-forwarded-for` is set by Vercel/most proxies; the first entry is the original client. */
-export function clientIp(headers: Headers): string {
-  const forwarded = headers.get("x-forwarded-for");
-  if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim();
-    if (first) return first;
-  }
-  return headers.get("x-real-ip")?.trim() || "unknown";
-}
-
-export function createRateLimiter(options: RateLimitOptions): RateLimiter {
-  const { limit, windowMs } = options;
-  // ip -> { count, resetAt }
-  const buckets = new Map<string, { count: number; resetAt: number }>();
-
-  return {
-    check(headers: Headers): RateLimitResult {
-      const now = Date.now();
-      const ip = clientIp(headers);
-      const bucket = buckets.get(ip);
-
-      if (!bucket || bucket.resetAt <= now) {
-        buckets.set(ip, { count: 1, resetAt: now + windowMs });
-        return { ok: true };
-      }
-
-      if (bucket.count >= limit) {
-        return {
-          ok: false,
-          retryAfterSeconds: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)),
-        };
-      }
-
-      bucket.count += 1;
-      return { ok: true };
-    },
-  };
-}
+import { createDistributedRateLimiter } from "./rate-limit-upstash";
+export { createDistributedRateLimiter } from "./rate-limit-upstash";
 
 /**
- * The limiter the order route uses.
+ * The limiter the order route uses — distributed via Upstash Redis.
  *
  * Six orders per minute per IP is generous for a person placing one order and
  * tight enough to stop a script from filling the order table.
+ * FAIL OPEN on Redis outage — don't block legitimate orders.
  */
-export const orderLimiter = createRateLimiter({ limit: 6, windowMs: 60_000 });
+export const orderLimiter = createDistributedRateLimiter({ limit: 6, windowMs: 60_000, prefix: "rl:order", failOpen: true });
 
-/** The limiter the upload route uses. */
-export const uploadLimiter = createRateLimiter({ limit: 12, windowMs: 60_000 });
+/** The limiter the upload route uses — distributed via Upstash Redis. */
+export const uploadLimiter = createDistributedRateLimiter({ limit: 12, windowMs: 60_000, prefix: "rl:upload" });
+
+/**
+ * M-Pesa deposit retries — distributed via Upstash Redis.
+ * Six per minute is plenty for a human who mistyped a number and stops a script
+ * from spamming Daraja with STK Pushes (each of which pings a real phone).
+ */
+export const mpesaRetryLimiter = createDistributedRateLimiter({ limit: 6, windowMs: 60_000, prefix: "rl:mpesa_retry" });
+
+/** Confirmation-page status polling — distributed via Upstash Redis. */
+export const mpesaStatusLimiter = createDistributedRateLimiter({ limit: 60, windowMs: 60_000, prefix: "rl:mpesa_status" });
+
+/**
+ * The Daraja callback itself — distributed via Upstash Redis.
+ * Generous — Safaricom retries callbacks — but capped so a flood cannot
+ * fill the logs or the payments table.
+ * FAIL OPEN on Redis outage — don't drop legitimate M-Pesa callbacks.
+ */
+export const mpesaCallbackLimiter = createDistributedRateLimiter({ limit: 120, windowMs: 60_000, prefix: "rl:mpesa_callback", failOpen: true });
+
+/**
+ * Login server action — 5 attempts per 15 minutes per IP.
+ *
+ * Prevents credential stuffing / brute force while allowing a legitimate user
+ * a few retries. Uses distributed Upstash Redis so limits are shared across
+ * all instances in production.
+ * FAIL CLOSED on Redis outage — block login attempts if Redis is down.
+ */
+export const loginLimiter = createDistributedRateLimiter({ limit: 5, windowMs: 15 * 60_000, prefix: "rl:login", failOpen: false });
+
+/**
+ * Admin API read routes (GET) — 60 requests per minute per IP.
+ *
+ * Authenticated staff browsing the dashboard; generous enough for polling
+ * and navigation but tight enough to catch automated scraping.
+ */
+export const adminReadLimiter = createDistributedRateLimiter({ limit: 60, windowMs: 60_000, prefix: "rl:admin_read" });
+
+/**
+ * Admin API write routes (POST, PATCH, DELETE) — 20 requests per minute per IP.
+ *
+ * Mutating actions (creating orders, recording payments, blocking dates, etc.);
+ * stricter limit since these change state and are lower-volume by nature.
+ */
+export const adminWriteLimiter = createDistributedRateLimiter({ limit: 20, windowMs: 60_000, prefix: "rl:admin_write" });

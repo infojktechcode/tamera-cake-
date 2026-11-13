@@ -34,6 +34,8 @@ export interface OrderView {
   subtotal: number;
   total: number;
   depositRequired: number;
+  /** Completed payments only (the DB trigger keeps this in sync). */
+  amountPaid: number;
   priceNeedsQuote: boolean;
   status: string;
   items: OrderItemView[];
@@ -50,6 +52,7 @@ interface OrderRow {
   subtotal: number;
   total: number;
   deposit_required: number;
+  amount_paid: number;
   price_needs_quote: boolean;
   status: string;
   customers: { name: string } | { name: string }[] | null;
@@ -93,7 +96,7 @@ export async function getOrderByPublicToken(
     .from("orders")
     .select(
       `id,order_number,fulfilment,delivery_address,delivery_fee,date_needed,time_needed,
-       subtotal,total,deposit_required,price_needs_quote,status,
+       subtotal,total,deposit_required,amount_paid,price_needs_quote,status,
        customers(name),
        order_items(id,name,quantity,unit_price,line_total,product_id,
          cake_details(size_kg,flavour_name,design_tier_name,design_description,cake_message))`,
@@ -120,6 +123,7 @@ export async function getOrderByPublicToken(
     subtotal: row.subtotal,
     total: row.total,
     depositRequired: row.deposit_required,
+    amountPaid: row.amount_paid,
     priceNeedsQuote: row.price_needs_quote,
     status: row.status,
     items: (row.order_items ?? []).map((item) => {
