@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Mock environment
 const originalEnv = process.env;
@@ -14,20 +15,21 @@ describe("MFA Enforcement - enforceAal2ForSuperadmin", () => {
   });
 
   // Helper to create a mock Supabase client
-  const createMockSupabase = (aal: string) => ({
-    auth: {
-      getUser: vi.fn().mockResolvedValue({
-        data: {
-          user: {
-            id: "user-1",
-            email: "superadmin@test.com",
-            app_metadata: { aal },
-            user_metadata: {},
+  const createMockSupabase = (aal: string) =>
+    ({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: {
+            user: {
+              id: "user-1",
+              email: "superadmin@test.com",
+              app_metadata: { aal },
+              user_metadata: {},
+            },
           },
-        },
-      }),
-    },
-  });
+        }),
+      },
+    }) as unknown as SupabaseClient;
 
   it("throws MFA_REQUIRED for superadmin at AAL1 when enforcement enabled", async () => {
     process.env.NEXT_PUBLIC_ENFORCE_MFA = "true";
